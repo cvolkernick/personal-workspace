@@ -246,6 +246,11 @@ class TestSleeveGateAndWeights(Base):
     def test_over_40pct_stocks_get_rest_toward_50_50(self):
         # BTC 100 / invested 150; run 30 -> BTC target 0.4*180-100 < 0 -> all to stocks.
         # Sleeve pins are buy-only. Theme names are pending approval, not executable legs.
+        # The shipped theme_buy_hold would leave that theme cash uninvested. This
+        # assertion is the cleared-flag path.
+        policy = json.loads(self.policy.read_text(encoding="utf-8"))
+        policy["theme_buy_hold"]["active"] = False
+        self.policy.write_text(json.dumps(policy), encoding="utf-8")
         _, info = self.plan([buy("TSLA", 15), buy("SPCX", 15)], snapshot=snap(cash=30, positions=OVER))
         legs = self.legs(info)
         self.assertGreater(info["btc_share_before"], 0.4)

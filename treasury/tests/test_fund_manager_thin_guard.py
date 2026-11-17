@@ -1,7 +1,9 @@
 """Thin guard: external open buys, reservations, broker_unavailable, 1752 pins.
 
-Buy-only. Theme buys are pending approval and are never placed. MARA is an
-energy pin (1% of the whole fund), not a BTC miner.
+Buy-only. Theme buys are pending approval and are never placed. While
+theme_buy_hold is active, AI-defense and energy buys are not proposed, not
+queued, and not written as pending approval. MARA is an energy pin (1% of the
+whole fund), not a BTC miner.
 """
 
 from __future__ import annotations
@@ -248,7 +250,11 @@ class TestPinsAndThemes(Base):
         self.assertTrue(all(p["side"] == "buy" and p["auto_execute"] is False for p in pending))
 
     def test_theme_gate_never_auto_executes(self):
+        # Cleared hold: theme buys are pending approval and are never placed.
         # BTC already above 40% so the stock sleeve is in play.
+        policy = json.loads(self.policy.read_text(encoding="utf-8"))
+        policy["theme_buy_hold"]["active"] = False
+        self.policy.write_text(json.dumps(policy), encoding="utf-8")
         positions = [
             {"symbol": "STRC", "quantity": "4", "average_buy_price": "100", "market_value": "400"},
             {"symbol": "TSLA", "quantity": "1", "average_buy_price": "10", "market_value": "10"},
@@ -302,6 +308,136 @@ class TestPinsAndThemes(Base):
         sells = [o for o in orders if isinstance(o, dict) and o.get("side") == "sell"]
         self.assertEqual([o.get("purpose") for o in sells], ["trim"])
         self.assertFalse(any(p.get("side") == "sell" for p in (info.get("pending_approvals") or [])))
+
+
+THEME_SYMS = ("PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO", "MARA")
+
+
+def _clear_hold(policy_path: Path, active: bool) -> None:
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    policy["theme_buy_hold"]["active"] = active
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+
+class TestThemeBuyHold(Base):
+    def _stock_book(self):
+        # BTC is half the book, so the stock sleeve is in play. Core pins are
+        # already far above the post-buy target, so the whole run would be
+        # AI-defense then energy if the hold were clear.
+        positions = [
+            {"symbol": "STRC", "quantity": "1", "average_buy_price": "100", "market_value": "200000"},
+            {"symbol": "TSLA", "quantity": "1", "average_buy_price": "100", "market_value": "100000"},
+            {"symbol": "SPCX", "quantity": "1", "average_buy_price": "100", "market_value": "100000"},
+        ]
+        return snap(cash=40, positions=positions)
+
+    def test_active_hold_proposes_and_places_no_theme_buys(self):
+        cs = json.loads((ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8"))
+        fm_policy = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        self.assertEqual({k: Decimal(str(v)) for k, v in cs["pins"].items()}, PIN_SUM)
+        self.assertTrue(fm_policy["theme_buy_hold"]["active"])
+        self.assertEqual(fm_policy["theme_buy_hold"]["themes"], ["ai_defense", "energy"])
+        self.assertEqual(fm_policy["theme_buy_hold"]["set"], "2026-11-17")
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertEqual(err, "")
+        self.assertTrue(cfg["theme_buy_hold"]["active"])
+
+        client = FakeClient()
+        intents = [buy(sym, 5) for sym in THEME_SYMS]
+        orders, info = self.plan(intents, snapshot=self._stock_book(), client=client)
+        placed_syms = [o["symbol"] for o in orders if isinstance(o, dict)]
+        for sym in THEME_SYMS:
+            self.assertNotIn(sym, placed_syms)
+        self.assertEqual(info.get("pending_approvals") or [], [])
+        self.assertEqual(info["status"], broker.S_THEME_HOLD)
+        self.assertIn("theme_buy_hold", info["reason"])
+        pending_path = self.dir / "pending.json"
+        if pending_path.is_file():
+            blob = json.loads(pending_path.read_text(encoding="utf-8"))
+            entries = blob.get("entries") if isinstance(blob, dict) else blob
+            self.assertEqual(entries or [], [])
+        self.assertEqual(client.placed, [])
+        place_name = "place_" + "order"
+        self.assertFalse(any(c[0] in (place_name, "review_" + "order") for c in client.calls))
+        self.assertFalse(any(str(o.get("state") or "") == "queued" for o in client.orders))
+
+        ok, why = broker.should_buy(
+            snapshot=self._stock_book(), policy_path=self.policy, ledger_path=self.ledger,
+            now=NOW, client=client,
+        )
+        self.assertTrue(ok)
+        self.assertIn("theme_buy_hold", why)
+        self.assertIn("ai_defense", why)
+        self.assertIn("energy", why)
+        self.assertEqual(client.placed, [])
+
+        before = list(client.calls)
+        gated = gate.gate_orders([buy("PLTR", 5.0)], deployable_cash=40, policy=gpol(), now=NOW).allowed[0]
+        out = self.submit(gated, client)
+        self.assertEqual(out["status"], broker.S_THEME_HOLD)
+        self.assertEqual(client.calls, before)
+        self.assertEqual(client.placed, [])
+
+        with broker.BrokerLedger.transaction(self.ledger) as led:
+            led.data["runs"]["held-run"] = {
+                "run_date": broker.et_date(NOW),
+                "status": "planned",
+                "legs": {"CCJ": "5.00"},
+            }
+            led.save()
+            review = broker._review_and_place(
+                led, {"run_id": "held-run"}, cfg, client, "CCJ", Decimal("5.00"),
+                broker.et_date(NOW), "hold-key", NOW,
+            )
+        self.assertEqual(review["status"], broker.S_THEME_HOLD)
+        self.assertEqual(client.calls, before)
+        self.assertEqual(client.placed, [])
+        self.assertFalse(any(str(o.get("state") or "") == "queued" for o in client.orders))
+
+    def test_clearing_hold_restores_pending_approval(self):
+        _clear_hold(self.policy, False)
+        client = FakeClient()
+        orders, info = self.plan(
+            [buy("PLTR", 20), buy("CCJ", 20)], snapshot=self._stock_book(), client=client,
+        )
+        placed_syms = [o["symbol"] for o in orders if isinstance(o, dict)]
+        for sym in THEME_SYMS:
+            self.assertNotIn(sym, placed_syms)
+        pending = info.get("pending_approvals") or []
+        self.assertTrue(pending)
+        self.assertTrue(all(p["theme"] in ("ai_defense", "energy") for p in pending))
+        self.assertTrue(all(p["side"] == "buy" and p["auto_execute"] is False for p in pending))
+        self.assertEqual(pending[0]["theme"], "ai_defense")
+        on_disk = json.loads((self.dir / "pending.json").read_text(encoding="utf-8"))
+        self.assertTrue(on_disk["entries"])
+        self.assertTrue(all(e["status"] == "pending_approval" for e in on_disk["entries"]))
+        before = list(client.calls)
+        gated = gate.gate_orders([buy("PLTR", 5.0)], deployable_cash=40, policy=gpol(), now=NOW).allowed[0]
+        out = self.submit(gated, client)
+        self.assertEqual(out["status"], broker.S_PENDING)
+        self.assertEqual(client.placed, [])
+        self.assertEqual(client.calls, before)
+        self.assertFalse(any(c[0] in ("place_" + "order", "review_" + "order") for c in client.calls))
+
+    def test_loading_config_places_no_orders(self):
+        pending = ROOT / "investment" / "fund_manager_pending_approvals.json"
+        before = pending.read_bytes()
+        placed = []
+
+        def _place(self, order):
+            placed.append(order)
+            raise AssertionError("config load placed an order")
+
+        with unittest.mock.patch.object(broker.GrokMcpClient, "place_" + "order", _place):
+            cfg, err = broker.load_adapter_config(ROOT / "investment" / "fund_manager.json")
+            self.assertEqual(err, "")
+            self.assertTrue(cfg["theme_buy_hold"]["active"])
+            self.assertEqual(list(cfg["theme_buy_hold"]["themes"]), ["ai_defense", "energy"])
+            rc = broker.main([])
+            self.assertEqual(rc, 0)
+        self.assertEqual(placed, [])
+        self.assertEqual(pending.read_bytes(), before)
+        self.assertEqual(json.loads(before)["entries"], [])
 
 
 if __name__ == "__main__":

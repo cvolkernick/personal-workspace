@@ -28,8 +28,11 @@ cash fills the BTC + digital-credit sleeve first until it reaches 40%.
   At/over 40%, BTC gets what keeps it at 40% after the run and stocks get the
   rest, buy-only toward the sleeve-basis pins in consider_share.json (sum 100).
   AI defense fills before energy. Theme buys are pending Chris's approval and
-  are never auto-executed. MARA is an energy pin (1% of the whole fund), not a
-  BTC miner; a buy is proposed only when the position is below that 1%.
+  are never auto-executed. ``theme_buy_hold`` (shipped active) blocks the
+  ai_defense and energy themes from being proposed, placed, queued, or written
+  as pending-approval items until ``active`` is set false by hand. MARA is an
+  energy pin (1% of the whole fund), not a BTC miner; a buy is proposed only
+  when the position is below that 1% and the hold is clear.
 * BTC-sleeve weights: the fixed legs are every uppercase ticker key with a
   numeric weight in ``new_money_weights`` (live: STRC 25 / SATA 25 / STRK 15 /
   SATS 10 of the BTC amount; each must be on ``symbol_allowlist`` and fixed +
@@ -117,6 +120,7 @@ S_CALENDAR = "not_submitted_calendar_unknown"
 S_ADVISORY = "refused_advisory_only"
 S_UNAVAILABLE = "broker_unavailable"
 S_PENDING = "not_submitted_pending_approval"
+S_THEME_HOLD = "not_submitted_theme_buy_hold"
 # plan statuses
 P_PLANNED = "planned"
 P_REPAIRED = "weights_repaired"
@@ -126,7 +130,7 @@ TERMINAL_STATUSES = frozenset(
         S_PLACED, S_NOT_GATED, S_NON_BUY, S_DISABLED, S_LIVE_FALSE, S_CONFIG, S_NO_CLIENT,
         S_REVIEW_FAILED, S_BROKER_REJECTED, S_DUP_KEY, S_DUP_BROKER, S_LEDGER, S_PLACE_UNKNOWN,
         S_UNPLANNED, S_BEFORE_WINDOW, S_OUTSIDE_HOURS, S_DAY_DONE, S_SLEEVE_GATE, S_BELOW_MIN,
-        S_BOOK_UNKNOWN, S_CALENDAR, S_UNAVAILABLE, S_PENDING,
+        S_BOOK_UNKNOWN, S_CALENDAR, S_UNAVAILABLE, S_PENDING, S_THEME_HOLD,
     }
 )
 PLAN_SKIP_STATUSES = frozenset({S_CONFIG, S_CALENDAR, S_BEFORE_WINDOW, S_OUTSIDE_HOURS, S_DAY_DONE, S_BELOW_MIN, S_BOOK_UNKNOWN, S_LEDGER})
@@ -332,6 +336,7 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
         "one_run_per_day": ba.get("one_buy_run_per_et_day", True) is not False,
         "low_preference": ba.get("low_preference") if isinstance(ba.get("low_preference"), dict) else {},
         "client": str(ba.get("client") or "").strip(),
+        "theme_buy_hold": _theme_buy_hold(data),
     }
     return cfg, ""
 
@@ -716,6 +721,74 @@ def load_stock_pins(policy_path: Optional[Path] = None) -> Dict[str, Any]:
         if syms:
             themes.append((name, syms))
     return {"pins": pins, "whole_fund": whole, "themes": themes}
+
+
+# Shipped hold covers these two themes when active is true and themes is empty.
+_DEFAULT_HELD_THEMES = ("ai_defense", "energy")
+
+
+def _theme_buy_hold(data: Any) -> Dict[str, Any]:
+    """Read ``theme_buy_hold``. Active only when ``active`` is exactly true.
+
+    Clearing is ``active: false`` by hand. An active block with no themes list
+    holds ai_defense and energy. A missing block is not a hold.
+    """
+    raw = data.get("theme_buy_hold") if isinstance(data, dict) else None
+    if not isinstance(raw, dict):
+        return {"active": False, "themes": (), "reason": "", "set": ""}
+    active = raw.get("active") is True
+    named: List[str] = []
+    for item in raw.get("themes") or []:
+        if isinstance(item, str) and item.strip():
+            named.append(item.strip())
+    themes = tuple(dict.fromkeys(named))
+    if active and not themes:
+        themes = _DEFAULT_HELD_THEMES
+    return {
+        "active": active,
+        "themes": themes,
+        "reason": str(raw.get("reason") or "").strip(),
+        "set": str(raw.get("set") or "").strip(),
+    }
+
+
+def _held_theme_names(cfg: Dict[str, Any]) -> Tuple[str, ...]:
+    hold = cfg.get("theme_buy_hold") if isinstance(cfg.get("theme_buy_hold"), dict) else {}
+    if not hold or hold.get("active") is not True:
+        return ()
+    themes = hold.get("themes") or ()
+    return tuple(str(name) for name in themes if str(name).strip())
+
+
+def _symbol_theme(cfg: Dict[str, Any], symbol: str) -> str:
+    for name, syms in cfg.get("themes") or []:
+        if symbol in syms:
+            return str(name)
+    return ""
+
+
+def _theme_hold_reason(cfg: Dict[str, Any], symbol: str) -> str:
+    """Why this symbol's theme buy is held, or '' when the hold does not apply."""
+    held = set(_held_theme_names(cfg))
+    if not held:
+        return ""
+    theme = _symbol_theme(cfg, symbol)
+    if not theme or theme not in held:
+        return ""
+    hold = cfg.get("theme_buy_hold") or {}
+    why = str(hold.get("reason") or "theme_buy_hold is active")
+    return f"{symbol} {theme} buy held until theme_buy_hold.active is set false by hand ({why})"
+
+
+def _hold_suffix(cfg: Dict[str, Any]) -> str:
+    names = _held_theme_names(cfg)
+    if not names:
+        return ""
+    return (
+        "; theme_buy_hold active ("
+        + ",".join(names)
+        + "): those buys are not proposed, not queued, and not written as pending approval"
+    )
 
 
 def load_reservations(path: Optional[Path] = None, now: Optional[datetime] = None) -> Decimal:
@@ -1210,11 +1283,48 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             auto, pending = allocate_stock_buys(
                 stock_amt, held, nav, cfg["stock_pins"], cfg.get("themes") or [], cfg.get("whole_fund_pct") or {},
             )
+            held_themes = set(_held_theme_names(cfg))
+            blocked_pending: List[Dict[str, Any]] = []
+            if held_themes:
+                blocked_pending = [p for p in pending if str(p.get("theme") or "") in held_themes]
+                pending = [p for p in pending if str(p.get("theme") or "") not in held_themes]
+                for sym in list(auto):
+                    if _theme_hold_reason(cfg, sym):
+                        blocked_pending.append({
+                            "symbol": sym,
+                            "side": "buy",
+                            "notional_usd": float(auto.pop(sym)),
+                            "theme": _symbol_theme(cfg, sym),
+                            "status": S_THEME_HOLD,
+                            "auto_execute": False,
+                        })
             legs.update(auto)
             info["pending_approvals"] = pending
+            if held_themes:
+                info["theme_buy_hold"] = {
+                    "active": True,
+                    "themes": list(_held_theme_names(cfg)),
+                    "set": str((cfg.get("theme_buy_hold") or {}).get("set") or ""),
+                }
             for s, v in auto.items():
                 if abs(proposed.get(s, ZERO) - v) > tol:
                     repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${v:.2f} (sleeve pin, buy-only)")
+            for item in blocked_pending:
+                info["dropped"].append({
+                    "symbol": item.get("symbol"),
+                    "notional_usd": item.get("notional_usd") or 0.0,
+                    "status": S_THEME_HOLD,
+                    "reason": "theme_buy_hold active; not proposed, not queued, not written as pending approval",
+                })
+                repaired.append(
+                    f"{item['symbol']} ${float(item['notional_usd']):.2f} held ({item.get('theme')}; not queued)"
+                )
+            if blocked_pending:
+                info["notes"].append(
+                    "theme_buy_hold active ("
+                    + ",".join(_held_theme_names(cfg))
+                    + "): those buys are not proposed, not queued, and not written as pending approval"
+                )
             for item in pending:
                 repaired.append(
                     f"{item['symbol']} ${item['notional_usd']:.2f} -> pending approval ({item['theme']}; not auto-executed)"
@@ -1290,6 +1400,14 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
         legs = _finalize_legs(legs, run_total, cfg, info)
         pending_left = info.get("pending_approvals") or []
         if not legs and not pending_left:
+            held_drop = any(
+                isinstance(row, dict) and row.get("status") == S_THEME_HOLD for row in (info.get("dropped") or [])
+            )
+            if held_drop:
+                return done(
+                    S_THEME_HOLD,
+                    "theme_buy_hold active; AI-defense and energy buys are not proposed, not placed, and not queued",
+                )
             return done(S_BELOW_MIN, "no leg left after folding/caps")
         run_id = f"{run_date}T{now.astimezone(_ET).strftime('%H%M%S')}-{uuid.uuid4().hex[:6]}"
         status = P_REPAIRED if repaired else P_PLANNED
@@ -1566,6 +1684,9 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
         problem = f"${amount} above max_order_notional_usd ${cfg['max_order']}"
     if problem:
         return _result(S_REVIEW_FAILED, problem, **base)
+    held = _theme_hold_reason(cfg, symbol)
+    if held:
+        return _result(S_THEME_HOLD, held + "; not proposed, not queued, not written as pending approval", **base)
     if symbol in set(cfg.get("theme_symbols") or ()):
         return _result(
             S_PENDING,
@@ -1582,6 +1703,13 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
 
 def _review_and_place(led, it, cfg, client, symbol, amount, run_date, key, now) -> Dict[str, Any]:
     base = {"idempotency_key": key}
+    held = _theme_hold_reason(cfg, symbol)
+    if held:
+        return _result(
+            S_THEME_HOLD,
+            held + "; not proposed, not queued, not written as pending approval",
+            **base,
+        )
     acct = cfg["account_number"]
     run_id = str(it.get("run_id") or "")
     plan = led.data["runs"].get(run_id) if run_id else None
@@ -1757,49 +1885,58 @@ def should_buy(
     cfg, err = load_adapter_config(policy_path)
     if cfg is None:
         return False, f"{S_CONFIG}: {err}"
+
+    def answer(ok: bool, why: str) -> Tuple[bool, str]:
+        # The hold does not block core or BTC buys. It records that named theme
+        # buys will not be proposed, queued, or written as pending approval.
+        suffix = _hold_suffix(cfg)
+        if suffix and suffix not in why:
+            why += suffix
+        return ok, why
+
     if not cfg["live"] or not cfg["enabled"]:
-        return False, f"{S_LIVE_FALSE}: live/enabled not true"
+        return answer(False, f"{S_LIVE_FALSE}: live/enabled not true")
     st, why = market_window(now, cfg)
     if st:
-        return False, f"{st}: {why}"
+        return answer(False, f"{st}: {why}")
     run_date = et_date(now)
     try:
         with BrokerLedger.transaction(ledger_path) as led:
             if led.unavailable(run_date):
-                return False, f"{S_UNAVAILABLE}: backoff for the rest of this ET day"
+                return answer(False, f"{S_UNAVAILABLE}: backoff for the rest of this ET day")
             claim = led.day_claim(run_date) if cfg["one_run_per_day"] else None
     except (OSError, ValueError) as exc:
-        return False, f"{S_LEDGER}: {type(exc).__name__}"
+        return answer(False, f"{S_LEDGER}: {type(exc).__name__}")
     if claim:
-        return False, f"{S_DAY_DONE}: {claim.get('claimed_by')} ({claim.get('reason')})"
+        return answer(False, f"{S_DAY_DONE}: {claim.get('claimed_by')} ({claim.get('reason')})")
     snapshot = snapshot if snapshot is not None else load_snapshot()
     ag = _snapshot_agentic(snapshot or {})
     age = _snapshot_age_hours(snapshot or {}, now) if ag else None
     if not ag or age is None or age > cfg["snapshot_max_age_hours"]:
-        return False, f"{S_BOOK_UNKNOWN}: snapshot missing/stale"
+        return answer(False, f"{S_BOOK_UNKNOWN}: snapshot missing/stale")
     sc = settled_cash(ag)
     if sc is None:
-        return False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}"
+        return answer(False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}")
     raw_orders = orders
     if raw_orders is None and client is not None:
         try:
             raw_orders, order_err = _fetch_orders(client, cfg, now)
         except BrokerUnavailable as exc:
-            return False, f"{S_UNAVAILABLE}: {exc}"
+            return answer(False, f"{S_UNAVAILABLE}: {exc}")
         if order_err:
-            return False, f"{S_BOOK_UNKNOWN}: {order_err}"
+            return answer(False, f"{S_BOOK_UNKNOWN}: {order_err}")
     hits = _external_hits(raw_orders or [], run_date, set())
     ext_usd = _external_usd(hits)
     ext_reason = _external_same_day(raw_orders or [], run_date, set()) if raw_orders else None
     if ext_reason and cfg["one_run_per_day"]:
-        return False, f"{S_DAY_DONE}: {ext_reason}"
+        return answer(False, f"{S_DAY_DONE}: {ext_reason}")
     reserved = load_reservations(reservations_path, now)
     net = sc - reserved - ext_usd
     if net < cfg["min_investable"]:
-        return False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}"
+        return answer(False, f"{S_BELOW_MIN}: settled cash ${sc} < ${cfg['min_investable']}")
     if reserved == 0 and ext_usd == 0:
-        return True, f"settled cash ${sc} >= ${cfg['min_investable']}; buy run allowed"
-    return True, f"investable ${net} >= ${cfg['min_investable']}; buy run allowed"
+        return answer(True, f"settled cash ${sc} >= ${cfg['min_investable']}; buy run allowed")
+    return answer(True, f"investable ${net} >= ${cfg['min_investable']}; buy run allowed")
 
 
 # --------------------------------------------------------------------------

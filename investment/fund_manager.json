@@ -5,6 +5,15 @@
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
+  "theme_buy_hold": {
+    "active": true,
+    "themes": [
+      "ai_defense",
+      "energy"
+    ],
+    "reason": "AI-defense and energy theme buys stay held until this flag is set active false by hand, after Nvidia reports on the evening of 2026-11-17. While active those buys are not proposed, not placed, not queued, and not written as pending-approval items.",
+    "set": "2026-11-17"
+  },
   "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
   "cadence": {
     "scheduled_reviews_per_day": 1,
@@ -396,7 +405,7 @@
           "mara_never_sell_or_trim": true
         }
       },
-      "notes": "Chris 2026-11-17: stocks sleeve pins on a sleeve basis (sum 100) matching consider_share.json. Core TSLA/SPCX auto buy-only toward those pins. AI defense fills before energy. Every AI-defense and energy buy requires Chris per-buy approval and is never auto-executed. MARA is in the energy theme at 1% of the whole fund; existing shares count; never sell or trim. Watchlist names that are not pins stay research-only. Buy-only, never sell or rebalance."
+      "notes": "Chris 2026-11-17: stocks sleeve pins on a sleeve basis (sum 100) matching consider_share.json. Core TSLA/SPCX auto buy-only toward those pins. AI defense fills before energy. Every AI-defense and energy buy requires Chris per-buy approval and is never auto-executed. theme_buy_hold (top of this file) ships active: those two themes are not proposed, not queued, and not written as pending-approval items until active is set false by hand after Nvidia reports on the evening of 2026-11-17. MARA is in the energy theme at 1% of the whole fund; existing shares count; never sell or trim. Watchlist names that are not pins stay research-only. Buy-only, never sell or rebalance."
     },
     "energy_opportunistic": {
       "target_pct": null,
@@ -603,7 +612,7 @@
           "notes": "Nakatoshi 2026-10-24: keep MSTR on the floating list but prefer other floating names through this date (prompt-level; logged when chosen)."
         }
       },
-      "notes": "Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)); the floating 35% is always IBIT (honor_ai_floating false — AI-proposed floating names such as MSTR or miners are ignored); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp. | 2026-11-17 thin guard: sleeve-basis pins; open external buys of any date reserve cash and claim the day; theme buys approval-gated; MARA is energy."
+      "notes": "Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)); the floating 35% is always IBIT (honor_ai_floating false — AI-proposed floating names such as MSTR or miners are ignored); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp. | 2026-11-17 thin guard: sleeve-basis pins; open external buys of any date reserve cash and claim the day; theme buys approval-gated; MARA is energy. theme_buy_hold ships active for ai_defense and energy: those buys are not proposed or queued until active is set false by hand. Loading this file places no orders."
     },
     "notes": "Dollar/fractional market only in regular_hours (queue if after hours). Outside regular hours use extended limit only when fractional allowed."
   },
