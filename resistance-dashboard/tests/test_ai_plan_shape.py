@@ -1,4 +1,4 @@
-"""SuperGrok plans get the same legs/abs rules before they are stored."""
+"""SuperGrok plans get the same rotation and guards before they are stored."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def _ai_leg(name, sets, weight=100):
 
 
 class AiLegsPostshape(unittest.TestCase):
-    def test_realistic_legs_day_matches_the_template(self):
+    def test_realistic_legs_day_keeps_guards_not_a_template(self):
         workout = {
             "source": "grok",
             "session_type": "legs",
@@ -50,30 +50,26 @@ class AiLegsPostshape(unittest.TestCase):
             as_of="2026-11-18",
         )
         got = [(row["id"], _sets(row)) for row in out["exercises"]]
-        self.assertEqual(
-            got,
-            [
-                ("hack-squat", 2),
-                ("rdl", 2),
-                ("leg-extension", 2),
-                ("seated-leg-curls", 2),
-                ("machine-adduction", 1),
-                ("machine-abduction", 1),
-                ("calf-raises", 2),
-                ("ab-crunch-machine", 2),
-            ],
-        )
         self.assertLessEqual(sum(sets for _, sets in got), CAP)
         self.assertEqual(out["source"], "grok")
-        ids = {row["id"] for row in out["exercises"]}
-        self.assertNotIn("barbell-deadlift", ids)
-        self.assertNotIn("trap-bar-deadlift", ids)
-        self.assertNotIn("back-extension", ids)
-        self.assertNotIn("back-extension-45", ids)
-        self.assertNotIn("leg-press", ids)
-        # New rows are not given an invented load.
-        ext = next(row for row in out["exercises"] if row["id"] == "leg-extension")
-        self.assertIsNone((ext.get("prescription") or {}).get("weight_lbs"))
+        ids = [row["id"] for row in out["exercises"]]
+        hinges = [
+            eid for eid in ids
+            if eid in {"rdl", "barbell-deadlift", "trap-bar-deadlift", "back-extension", "back-extension-45"}
+        ]
+        self.assertEqual(len(hinges), 1, ids)
+        self.assertLess(ids.index("hack-squat"), ids.index("leg-press"))
+        self.assertIn("hack-squat", ids)
+        self.assertIn("leg-press", ids)
+        added = [
+            row for row in out["exercises"]
+            if row["id"] not in {
+                "hack-squat", "leg-press", "rdl", "seated-leg-curls",
+                "calf-raises", "barbell-deadlift", "back-extension",
+            }
+        ]
+        for row in added:
+            self.assertIsNone((row.get("prescription") or {}).get("weight_lbs"), row["id"])
 
     def test_abs_lands_on_two_days_at_two_sets(self):
         catalog = default_catalog()
@@ -106,7 +102,10 @@ class AiLegsPostshape(unittest.TestCase):
             out = postshape_ai_workout(
                 raw, catalog, history, goals=goals, as_of=day
             )
-            abs_rows = [row for row in out["exercises"] if row.get("id") == "ab-crunch-machine"]
+            abs_rows = [
+                row for row in out["exercises"]
+                if row.get("id") in {"ab-crunch-machine", "cable-crunch", "roman-chair-raise"}
+            ]
             self.assertLessEqual(sum(_sets(row) for row in out["exercises"]), CAP)
             if abs_rows:
                 abs_days.append(letter)
@@ -194,9 +193,11 @@ class AbsCapTrim(unittest.TestCase):
             force_counts=False,
         )
         by_id = {row["id"]: row for row in shaped}
-        self.assertIn("ab-crunch-machine", by_id)
-        self.assertEqual(_sets(by_id["ab-crunch-machine"]), 2)
-        self.assertLess(_sets(by_id["lateral-raises"]), 10)
+        abs_ids = [eid for eid in by_id if eid in {"ab-crunch-machine", "cable-crunch", "roman-chair-raise"}]
+        self.assertEqual(len(abs_ids), 1, list(by_id))
+        self.assertEqual(_sets(by_id[abs_ids[0]]), 2)
+        if "lateral-raises" in by_id:
+            self.assertLess(_sets(by_id["lateral-raises"]), 10)
         self.assertEqual(_sets(by_id["db-flat-press"]), 2)
         self.assertEqual(_sets(by_id["smith-flat-bench"]), 2)
         self.assertLessEqual(sum(_sets(row) for row in shaped), CAP)

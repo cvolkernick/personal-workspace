@@ -279,6 +279,73 @@ def clear_memory_workout_plans() -> None:
     _MEMORY.clear()
 
 
+def list_recent_good_workout_plans(
+    user_id: str,
+    on_or_before: str,
+    *,
+    letter: Optional[str] = None,
+    limit: int = 8,
+) -> list:
+    """Read recent good plans. Does not write or rewrite stored rows.
+
+    Plans on ``on_or_before`` itself are left out, so regenerating today
+    does not count as history for today's accessories.
+    """
+    uid = (user_id or "").strip()
+    day = civil_day(on_or_before)
+    want = str(letter or "").strip().lower()
+    if not uid or not day:
+        return []
+    found = {}
+
+    def consider(plan_day: str, plan: Optional[dict]) -> None:
+        stamp = civil_day(plan_day)
+        if not stamp or stamp >= day or not is_good_workout_plan(plan):
+            return
+        plan_letter = _plan_letter(plan or {})
+        if want and plan_letter not in ("", want):
+            return
+        row = dict(plan or {})
+        row["date"] = stamp
+        if want and not row.get("session_type"):
+            row["session_type"] = want
+        found[stamp] = row
+
+    for (mem_uid, mem_day), plan in list(_MEMORY.items()):
+        if mem_uid == uid:
+            consider(mem_day, plan)
+    try:
+        from .turso_http import connect, turso_enabled
+
+        if turso_enabled():
+            with connect() as conn:
+                conn.execute(ENSURE_WORKOUT_PLAN_SQL)
+                rows = conn.execute(
+                    """
+                    SELECT local_today, payload FROM workout_plan
+                    WHERE user_id = ? AND local_today < ?
+                    ORDER BY local_today DESC
+                    LIMIT 30
+                    """,
+                    (uid, day),
+                ).fetchall()
+            for row in rows or []:
+                if isinstance(row, dict):
+                    plan_day = row.get("local_today")
+                    payload = row.get("payload")
+                else:
+                    plan_day, payload = row[0], row[1]
+                try:
+                    data = json.loads(payload) if isinstance(payload, str) else None
+                except (TypeError, json.JSONDecodeError):
+                    data = None
+                consider(str(plan_day or ""), data if isinstance(data, dict) else None)
+    except Exception:
+        pass
+    ordered = [found[stamp] for stamp in sorted(found, reverse=True)]
+    return ordered[: max(1, int(limit or 8))]
+
+
 def _plan_letter(plan: dict) -> str:
     return str(plan.get("session_type") or "").strip().lower()
 

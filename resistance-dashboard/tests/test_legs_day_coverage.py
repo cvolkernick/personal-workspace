@@ -1,4 +1,9 @@
-"""Legs-day coverage: one hinge, quad isolation, hips, abs twice a week."""
+"""Legs-day guards after the fixed template was removed.
+
+Rotation coverage lives in test_accessory_rotation.py. This file keeps
+the catalog rows and the session guards: one hinge, the set cap, and
+abs twice a week at 2 sets.
+"""
 
 from __future__ import annotations
 
@@ -33,17 +38,8 @@ RAMP = {
     "pinned_lifts": {},
 }
 
-TARGET = [
-    ("Leg Press", 2),
-    ("RDL", 2),
-    ("Leg Extension Machine", 2),
-    ("Seated Leg Curls", 2),
-    ("Machine Hip Adduction", 1),
-    ("Machine Hip Abduction", 1),
-    ("Calf Extensions", 2),
-    ("Ab Crunch Machine", 2),
-]
-HINGES = {"rdl", "barbell-deadlift", "trap-bar-deadlift"}
+HINGES = {"rdl", "barbell-deadlift", "trap-bar-deadlift", "back-extension", "back-extension-45"}
+ABS_NAMES = {"Ab Crunch Machine", "Cable Crunch", "Roman Chair Knee Raise"}
 NEW_IDS = ("leg-extension", "ab-crunch-machine", "cable-crunch", "back-extension-45")
 
 
@@ -67,13 +63,6 @@ def _shape(plan):
     ]
 
 
-def _planned(plan, muscle):
-    for row in plan["volume"]["muscles"]:
-        if row["muscle"] == muscle:
-            return row["planned"]
-    raise AssertionError(muscle)
-
-
 class LegsDayCoverage(unittest.TestCase):
     def setUp(self):
         self.catalog = default_catalog()
@@ -91,40 +80,33 @@ class LegsDayCoverage(unittest.TestCase):
             as_of=day,
         )
 
-    def test_target_legs_shape_fits_the_cap(self):
+    def test_legs_day_stays_inside_the_cap_with_one_hinge(self):
         plan = self._legs()
         shape = _shape(plan)
-        self.assertEqual(shape, TARGET)
         self.assertLessEqual(sum(sets for _, sets in shape), 14)
-        self.assertEqual([row["movement"] for row in plan["exercises"][:2]], ["compound", "compound"])
+        self.assertTrue(any(row["movement"] == "compound" for row in plan["exercises"]))
         hinges = [row["id"] for row in plan["exercises"] if row["id"] in HINGES]
-        self.assertEqual(hinges, ["rdl"])
-        self.assertNotIn("Barbell Deadlift", [name for name, _ in shape])
-        self.assertNotIn("Trap-Bar Deadlift", [name for name, _ in shape])
-        self.assertNotIn("Back Extension Machine", [name for name, _ in shape])
-        self.assertEqual(_planned(plan, "adductors"), 1.0)
-        self.assertEqual(_planned(plan, "abductors"), 1.0)
-        self.assertEqual(_planned(plan, "abs"), 2.0)
-        self.assertGreaterEqual(_planned(plan, "quads"), 2.0)
+        self.assertLessEqual(len(hinges), 1, shape)
+        abs_rows = [row for row in plan["exercises"] if row["name"] in ABS_NAMES]
+        self.assertEqual(len(abs_rows), 1)
+        self.assertEqual(int(abs_rows[0]["prescription"]["sets"]), 2)
 
-    def test_hack_squat_replaces_leg_press_when_available(self):
+    def test_hack_squat_is_listed_before_leg_press_when_both_are_available(self):
         catalog = copy.deepcopy(self.catalog)
         for row in catalog["exercises"]:
             if row["id"] == "hack-squat":
                 row["available"] = True
         plan = self._legs(catalog)
-        shape = _shape(plan)
-        self.assertEqual(shape[0], ("Hack Squat", 2))
-        self.assertNotIn("Leg Press", [name for name, _ in shape])
-        self.assertEqual(shape[1:], TARGET[1:])
-        self.assertLessEqual(sum(sets for _, sets in shape), 14)
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertLessEqual(sum(sets for _, sets in _shape(plan)), 14)
+        if "Hack Squat" in names and "Leg Press" in names:
+            self.assertLess(names.index("Hack Squat"), names.index("Leg Press"))
 
-    def test_never_programs_deadlift_and_rdl_together(self):
+    def test_never_programs_two_hinges_together(self):
         plan = self._legs()
-        names = {row["name"] for row in plan["exercises"]}
-        self.assertIn("RDL", names)
-        self.assertFalse({"Barbell Deadlift", "Trap-Bar Deadlift"} & names)
-        # Both hinges available and no RDL: still one hinge.
+        hinges = [row["id"] for row in plan["exercises"] if row["id"] in HINGES]
+        self.assertLessEqual(len(hinges), 1, [row["name"] for row in plan["exercises"]])
+        # Both deadlifts available and no RDL: still one hinge.
         catalog = {
             "exercises": [
                 row for row in self.catalog["exercises"]
@@ -134,51 +116,17 @@ class LegsDayCoverage(unittest.TestCase):
         for row in catalog["exercises"]:
             row["available"] = True
         bare = self._legs(catalog)
-        hinges = [row["id"] for row in bare["exercises"] if row["id"] in HINGES]
-        self.assertEqual(len(hinges), 1, [row["name"] for row in bare["exercises"]])
-        self.assertNotIn("rdl", hinges)
+        bare_hinges = [row["id"] for row in bare["exercises"] if row["id"] in HINGES]
+        self.assertEqual(len(bare_hinges), 1, [row["name"] for row in bare["exercises"]])
+        self.assertNotIn("rdl", bare_hinges)
 
-    def test_back_extension_only_while_the_hinge_stays_low(self):
-        # A 2-set RDL leaves no back-extension slot. The target plan covers that.
-        full = dict(_shape(self._legs()))
-        self.assertGreaterEqual(full["RDL"], 2)
-        self.assertNotIn("Back Extension Machine", full)
-        # No primary hinge in the pool: hinge sets stay at 0, so the slot opens.
-        kept = {
-            "leg-press", "seated-leg-curls", "calf-raises",
-            "back-extension", "back-extension-45",
-        }
-        catalog = {
-            "exercises": [
-                row for row in self.catalog["exercises"] if row["id"] in kept
-            ]
-        }
-        goals = dict(RAMP)
-        goals["volume_ramp_equal"] = False
-        low = self._legs(catalog, goals)
-        names = [row["name"] for row in low["exercises"]]
-        self.assertNotIn("RDL", names)
-        self.assertIn("Back Extension Machine", names)
-        self.assertNotIn("45-Degree Back Extension", names)
-        self.assertLessEqual(sum(sets for _, sets in _shape(low)), 14)
-        for row in catalog["exercises"]:
-            if row["id"] == "back-extension":
-                row["available"] = False
-        swapped = self._legs(catalog, goals)
-        swapped_names = [row["name"] for row in swapped["exercises"]]
-        self.assertIn("45-Degree Back Extension", swapped_names)
-        self.assertNotIn("Back Extension Machine", swapped_names)
-
-    def test_adductor_and_abductor_when_the_cap_has_room(self):
+    def test_deadlift_and_back_extension_are_not_together(self):
         plan = self._legs()
-        by_pattern = {}
-        for row in plan["exercises"]:
-            pattern = str(row.get("movement_pattern") or "")
-            if pattern in ("hip_adduction", "hip_abduction"):
-                by_pattern[pattern] = row
-        self.assertEqual(int(by_pattern["hip_adduction"]["prescription"]["sets"]), 1)
-        self.assertEqual(int(by_pattern["hip_abduction"]["prescription"]["sets"]), 1)
-        self.assertLessEqual(sum(sets for _, sets in _shape(plan)), 14)
+        names = {row["name"] for row in plan["exercises"]}
+        dead = names & {"Barbell Deadlift", "Trap-Bar Deadlift", "RDL"}
+        backs = names & {"Back Extension Machine", "45-Degree Back Extension"}
+        self.assertFalse(dead and backs, names)
+        self.assertLessEqual(len(dead) + len(backs), 1, names)
 
     def test_abs_twice_a_week_two_sets_crunch_machine_primary(self):
         goals = dict(RAMP)
@@ -225,8 +173,9 @@ class LegsDayCoverage(unittest.TestCase):
         self.assertEqual([item[1] for item in abs_days], ["push", "legs"])
         for _day, _letter, rows in abs_days:
             self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]["name"], "Ab Crunch Machine")
+            self.assertIn(rows[0]["name"], ABS_NAMES)
             self.assertEqual(int(rows[0]["prescription"]["sets"]), 2)
+        self.assertNotEqual(abs_days[0][2][0]["name"], abs_days[1][2][0]["name"])
 
     def test_abs_falls_back_to_cable_then_roman_chair(self):
         def with_unavailable(*ids):
@@ -237,10 +186,11 @@ class LegsDayCoverage(unittest.TestCase):
             return catalog
 
         cable = self._legs(with_unavailable("ab-crunch-machine"))
-        self.assertIn("Cable Crunch", [row["name"] for row in cable["exercises"]])
+        cable_abs = [row for row in cable["exercises"] if row["name"] in ABS_NAMES]
+        self.assertEqual(len(cable_abs), 1)
+        self.assertIn(cable_abs[0]["name"], {"Cable Crunch", "Roman Chair Knee Raise"})
         self.assertNotIn("Ab Crunch Machine", [row["name"] for row in cable["exercises"]])
-        crunch = next(row for row in cable["exercises"] if row["name"] == "Cable Crunch")
-        self.assertEqual(int(crunch["prescription"]["sets"]), 2)
+        self.assertEqual(int(cable_abs[0]["prescription"]["sets"]), 2)
 
         chair = self._legs(with_unavailable("ab-crunch-machine", "cable-crunch"))
         names = [row["name"] for row in chair["exercises"]]
@@ -286,8 +236,9 @@ class LegsDayCoverage(unittest.TestCase):
         self.assertEqual(by_id["back-extension-45"]["secondary_muscles"], ["hamstrings"])
         self.assertEqual(by_id["back-extension-45"]["equipment"], ["barbell"])
         plan = self._legs()
-        for name in ("Leg Extension Machine", "Ab Crunch Machine"):
-            row = next(item for item in plan["exercises"] if item["name"] == name)
-            self.assertIsNone(row["prescription"]["weight_lbs"], name)
-            self.assertIsNone(row.get("load"), name)
-            self.assertEqual(row.get("rep_range"), "10-15", name)
+        for name in ("Leg Extension Machine", "Ab Crunch Machine", "Cable Crunch", "Roman Chair Knee Raise"):
+            matches = [item for item in plan["exercises"] if item["name"] == name]
+            for row in matches:
+                self.assertIsNone(row["prescription"]["weight_lbs"], name)
+                self.assertIsNone(row.get("load"), name)
+                self.assertEqual(row.get("rep_range"), "10-15", name)

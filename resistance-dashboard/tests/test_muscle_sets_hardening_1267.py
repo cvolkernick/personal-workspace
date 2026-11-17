@@ -488,9 +488,9 @@ class PlannerCapUnchanged(unittest.TestCase):
         )
         self.assertEqual(
             self._plan(low + cur, "push", "2026-10-15"),
-            [("Behind-the-Neck Smith Press", 2), ("Tricep Pushdowns (Rope)", 2),
-             ("Smith Flat Bench", 2), ("Smith Incline Bench", 2),
-             ("Ab Crunch Machine", 2)],
+            [("Behind-the-Neck Smith Press", 2), ("Smith Flat Bench", 2),
+             ("Smith Incline Bench", 2), ("Tricep Pushdowns (Rope)", 2),
+             ("Smith Shrugs", 2), ("Cable Crunch", 2)],
         )
         hi = []
         for m in FOUR_WEEKS:
@@ -500,10 +500,8 @@ class PlannerCapUnchanged(unittest.TestCase):
         self.assertEqual(
             self._plan(hi, "push", "2026-10-13"),
             [("DB Incline Press", 2), ("Smith Flat Bench", 2), ("Behind-the-Neck Smith Press", 2),
-             # Pushdowns (Rope) is a pattern-family main lift: 2-set floor (#1316).
-             ("Tricep Pushdowns (Rope)", 2), ("Lateral Raises", 3),
-             # Push is the non-legs abs day: 2 sets, inside the cap.
-             ("Ab Crunch Machine", 2)],
+             # Push accessories rotate. Abs stays at 2 sets on the push day.
+             ("Tricep Pushdowns (T-Bar)", 2), ("Ab Crunch Machine", 2)],
         )
 
 
