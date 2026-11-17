@@ -543,6 +543,31 @@ class TestBiasSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(tsla["weight_pct"], 20.0)
         self.assertEqual(tsla["weight_basis"], "new_money_consider_share")
 
+    def test_missing_market_price_is_not_cost(self) -> None:
+        fm = _fm()
+        for p in fm["analysis"]["positions"]:
+            if p["symbol"] == "TSLA":
+                p["market_value"] = None
+                p["average_buy_price"] = 999
+        fm["analysis"]["valuation"] = "missing_market_price"
+        fm["analysis"]["weights_of_deployed"] = {
+            "btc_digital_credit": None,
+            "stocks_growth": None,
+        }
+        payload = build_bias_spectrum(
+            fund_manager=fm, treasury={}, policy=_policy(), watchlist=_watchlist()
+        )
+        tsla = {c["id"]: c for c in payload["chips"]}["bias-TSLA"]
+        self.assertTrue(tsla["held"])
+        self.assertTrue(tsla["price_missing"])
+        self.assertIsNone(tsla["market_value"])
+        self.assertIsNone(tsla["book_pct"])
+        self.assertEqual(tsla["value_label"], "price missing")
+        self.assertTrue(payload["price_missing"])
+        blob = json.dumps(payload)
+        self.assertNotIn("999", blob)
+        self.assertIn("price missing", blob)
+
     def test_zero_market_value_is_not_held(self) -> None:
         fm = _fm()
         fm["analysis"]["positions"].append(

@@ -244,7 +244,7 @@ has not filed, and shows no up/down reads and no "directed to" text. Everything 
 | Monitored set, pinned vs watch only | `investment/consider_share.json` (symbols it names; only `pins` read "pinned": SPCX, TSLA) | "No monitored symbols" |
 | Developments (~48h, source links), direction, actions taken | Naka's `investment/brief/YYYY-MM-DD.md`, format in `investment/brief/FORMAT.md` | "Naka's fund notes not yet filed for DATE" (never another day's file); date mismatch or bad format says so |
 | Newest actions entry | `investment/naka-actions.md` (append-only) | "No Naka entry on file yet." |
-| Holdings, live weights, drift vs the 50/50 pins | `treasury/snapshots/robinhood_latest.json` (the #518 producer's snapshot on prism), sleeve math = `treasury.fund_manager.analyze_agentic_book` | `no_data` with the snapshot's as_of when older than `automation.rh_stale_warn_hours` (6h) or missing. Weights are percentages only; they are a cost-basis estimate while the snapshot carries no per-position prices |
+| Holdings, live weights, drift vs the 50/50 pins | `treasury/snapshots/robinhood_latest.json` (the #518 producer's snapshot on prism), sleeve math = `treasury.fund_manager.analyze_agentic_book` | `no_data` with the snapshot's as_of when older than `automation.rh_stale_warn_hours` (6h) or missing. Weights are percentages only. A name with no market price renders `price missing` and is not filled from cost basis |
 | `fund_manager.live`, #1093 open/closed | `investment/fund_manager.json`; GitHub public issue API | "no data" if GitHub is unreachable. Labeled "context only, not permission" |
 | Macro, labeled **Horizon read**, held fixture | Meridian's file (below) | Labeled placeholder; nothing is invented |
 

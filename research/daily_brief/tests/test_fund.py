@@ -241,23 +241,25 @@ class TestNakaActionsLog(unittest.TestCase):
 
 class TestHoldings(unittest.TestCase):
     def test_weights_and_drift_vs_5050(self) -> None:
+        # The fixture has average buy prices and no marks. Those are cost, not a price.
         h = fund_status.holdings_block(SNAP, POLICY, CS, NOW)
         self.assertEqual(h["state"], "ok")
         rows = {r["symbol"]: r for r in h["rows"]}
-        self.assertEqual(rows["TSLA"]["stocks_sleeve_weight_pct"], 50.0)
-        # Sleeve pin is 33.33 (20% of the whole fund). 50.0 - 33.33 rounds to 16.7pp.
-        self.assertEqual(rows["TSLA"]["drift_pp"], 16.7)
-        self.assertEqual(rows["SPCX"]["stocks_sleeve_weight_pct"], 37.5)
-        self.assertEqual(rows["SPCX"]["drift_pp"], 4.2)
-        self.assertEqual(rows["SPCX"]["target_pct"], 33.3)
-        self.assertEqual(rows["TSLA"]["weight_nav_pct"], 20.0)
-        self.assertNotIn("drift_pp", rows["MSTR"])
+        self.assertTrue(rows["TSLA"]["price_missing"])
+        self.assertIsNone(rows["TSLA"].get("stocks_sleeve_weight_pct"))
+        self.assertIsNone(rows["TSLA"].get("weight_nav_pct"))
+        self.assertNotEqual(rows["TSLA"].get("stocks_sleeve_weight_pct"), 50.0)
         self.assertFalse(rows["MSTR"]["pinned"])
+        self.assertTrue(rows["MSTR"]["price_missing"])
         self.assertEqual(h["cash_weight_pct"], 10.0)
-        self.assertEqual(h["basis"], "cost-basis estimate")
-        self.assertIn("estimate", h["note"])
+        self.assertEqual(h["basis"], "price missing")
+        self.assertIn("price missing", h["note"])
         self.assertEqual(h["age_hours"], 1.9)
-        self.assertEqual({s["sleeve"] for s in h["sleeves"]}, {"btc_digital_credit", "stocks_growth"})
+        self.assertTrue(all(s.get("price_missing") for s in h["sleeves"]))
+        html = render.render_fund(fund.build_fund(CS, holdings=h))
+        self.assertIn("price missing", html)
+        self.assertNotIn("cost-basis", html)
+        self.assertNotIn("cost basis", html.lower())
 
     def test_no_dollar_amounts_or_quantities_leak(self) -> None:
         blob = json.dumps(fund_status.holdings_block(SNAP, POLICY, CS, NOW))
@@ -268,9 +270,14 @@ class TestHoldings(unittest.TestCase):
         from treasury.fund_manager import _position_market_value
 
         p = SNAP["agentic"]["positions"][1]
-        # Sizing does not invent a mark from average buy price.
+        # Sizing does not invent a mark from average buy price, and neither does the brief.
         self.assertIsNone(_position_market_value(p))
         self.assertEqual(_position_market_value(p, allow_cost_basis=True), 150.0)
+        h = fund_status.holdings_block(SNAP, POLICY, CS, NOW)
+        self.assertEqual(h["basis"], "price missing")
+        blob = json.dumps(h)
+        self.assertNotIn("cost-basis", blob)
+        self.assertNotIn("cost_basis", blob)
 
     def test_stale_snapshot_is_no_data_and_shows_as_of(self) -> None:
         later = datetime(2026, 10, 16, 16, 50, tzinfo=timezone.utc)  # 7h after as_of, limit 6h
@@ -293,7 +300,20 @@ class TestHoldings(unittest.TestCase):
         s = copy.deepcopy(SNAP)
         for p in s["agentic"]["positions"]:
             p["last_price"] = "100"
-        self.assertEqual(fund_status.holdings_block(s, POLICY, CS, NOW)["basis"], "snapshot prices")
+        h = fund_status.holdings_block(s, POLICY, CS, NOW)
+        self.assertEqual(h["basis"], "snapshot prices")
+        self.assertNotIn("price missing", h["note"])
+        rows = {r["symbol"]: r for r in h["rows"]}
+        self.assertEqual(rows["TSLA"]["stocks_sleeve_weight_pct"], 50.0)
+        # Sleeve pin is 33.33 (20% of the whole fund). 50.0 - 33.33 rounds to 16.7pp.
+        self.assertEqual(rows["TSLA"]["drift_pp"], 16.7)
+        self.assertEqual(rows["SPCX"]["stocks_sleeve_weight_pct"], 37.5)
+        self.assertEqual(rows["SPCX"]["drift_pp"], 4.2)
+        self.assertEqual(rows["SPCX"]["target_pct"], 33.3)
+        self.assertEqual(rows["TSLA"]["weight_nav_pct"], 20.0)
+        self.assertFalse(rows["TSLA"]["price_missing"])
+        self.assertNotIn("drift_pp", rows["MSTR"])
+        self.assertFalse(rows["MSTR"]["pinned"])
 
 
 class TestStatusAndMacro(unittest.TestCase):

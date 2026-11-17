@@ -23,7 +23,11 @@ from treasury.adapters import (  # noqa: E402
     load_config,
     save_json,
 )
-from treasury.fund_manager import evaluate_fund_manager, write_fund_manager_snapshot  # noqa: E402
+from treasury.fund_manager import (  # noqa: E402
+    evaluate_fund_manager,
+    shown_weight,
+    write_fund_manager_snapshot,
+)
 from treasury.policy import evaluate_treasury  # noqa: E402
 from treasury.solana_sync import overlay_solana_snapshot  # noqa: E402
 from treasury.x_money_glance import (  # noqa: E402
@@ -116,9 +120,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  P{a['priority']} [{a['actor']}] {a['title']}")
     fa = (fm.get("analysis") or {}) if isinstance(fm, dict) else {}
     if fa.get("ok"):
+        deployed = fa.get("weights_of_deployed") or {}
         print(
             f"  fund_manager nav=${fa.get('nav_usd')} bp=${fa.get('buying_power_usd')} "
-            f"deployed={fa.get('weights_of_deployed')}"
+            f"deployed=BTC {shown_weight(deployed.get('btc_digital_credit'))} "
+            f"stocks {shown_weight(deployed.get('stocks_growth'))}"
         )
     return 0
 

@@ -65,10 +65,6 @@ jobs:
             KNOWN_FAILING=(
               "tests/test_bias_weight_loop.py::TestPinsSoT::test_live_pins_unchanged_by_module_constants"
               "tests/test_fund_manager.py::TestFundPolicy::test_investment_sot_no_contradiction"
-              "tests/test_fund_manager.py::TestRulesReview::test_hold_when_dust_below_min_trade"
-              "tests/test_fund_manager.py::TestRulesReview::test_hold_when_in_band_zero_cash"
-              "tests/test_fund_manager.py::TestRulesReview::test_need_llm_when_cash_idle"
-              "tests/test_fund_manager.py::TestRulesReview::test_need_llm_when_spendable_cash_or_bp"
               "tests/test_rh_snapshot_sync.py::RhNotifyAc4Tests::test_stale_notify_names_producer_and_error_class"
               "tests/test_ynab_sync.py::TestNormalize::test_balance_owed_and_spend"
               "tests/test_ynab_sync.py::TestNormalizeChecking::test_rh_checking_cash"

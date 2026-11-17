@@ -507,7 +507,7 @@
           <div class="grid-2">
             ${kv("New-money consider-share", esc(pct(st.consider_share_pct, "of next dollar")))}
             ${kv("Held book %", st.held ? esc(pct(st.book_pct, "of deployed equity")) : "Unheld")}
-            ${kv("Live value", st.held ? esc(money(st.market_value)) : "—")}
+            ${kv("Live value", !st.held ? "—" : (st.value_label === "price missing" || st.market_value == null ? "price missing" : esc(money(st.market_value))))}
             ${kv("Role", esc(st.role_label || "—"))}
             ${kv("Sleeve", esc(st.sleeve_label || "—"))}
             ${kv("Last verdict", esc(st.verdict || "—"))}

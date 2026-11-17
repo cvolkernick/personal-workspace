@@ -407,25 +407,32 @@
       const el = document.getElementById("sleeve-legend");
       const w = data.sleeve_weights_deployed || {};
       const t = data.targets || {};
-      const btc = Number(w.btc_digital_credit);
-      const stocks = Number(w.stocks_growth);
+      function sleeveNum(v) {
+        if (v == null || v === "" || !Number.isFinite(Number(v))) return null;
+        return Math.round(Number(v) * 1000) / 10;
+      }
+      function sleeveText(v) {
+        const n = sleeveNum(v);
+        if (n == null) return data.price_missing ? "price missing" : "0%";
+        return n + "%";
+      }
+      const btcPct = sleeveNum(w.btc_digital_credit);
+      const stPct = sleeveNum(w.stocks_growth);
       const tb = Number(t.btc_digital_credit_pct);
       const ts = Number(t.stocks_growth_pct);
-      if (!Number.isFinite(btc) && !Number.isFinite(tb)) {
+      if (btcPct == null && stPct == null && !Number.isFinite(tb) && !data.price_missing) {
         el.innerHTML = "";
         return;
       }
-      const btcPct = Number.isFinite(btc) ? Math.round(btc * 1000) / 10 : 0;
-      const stPct = Number.isFinite(stocks) ? Math.round(stocks * 1000) / 10 : 0;
       const tBtc = Number.isFinite(tb) ? Math.round(tb * 100) : 40;
       const tSt = Number.isFinite(ts) ? Math.round(ts * 100) : 60;
       el.innerHTML =
         `<div class="hint" style="margin:0 0 0.25rem">New-money sleeve budget ${tBtc}/${tSt}. Deployed mix below is book drift — not the axis.</div>` +
         `<div class="sleeve-bar" title="deployed sleeve mix">` +
-        `<span class="btc" style="width:${btcPct}%"></span>` +
-        `<span class="stocks" style="width:${stPct}%"></span>` +
+        `<span class="btc" style="width:${btcPct == null ? 0 : btcPct}%"></span>` +
+        `<span class="stocks" style="width:${stPct == null ? 0 : stPct}%"></span>` +
         `</div>` +
-        `<p class="hint" style="margin:0">BTC/digital-credit ${btcPct}% · stocks/growth ${stPct}%</p>`;
+        `<p class="hint" style="margin:0">BTC/digital-credit ${sleeveText(w.btc_digital_credit)} · stocks/growth ${sleeveText(w.stocks_growth)}</p>`;
     }
 
     function render(data) {
@@ -440,9 +447,11 @@
         return;
       }
       list.innerHTML = chips.map((c) => {
-        const money = c.market_value != null
-          ? " · $" + Number(c.market_value).toLocaleString(undefined, { maximumFractionDigits: 2 })
-          : "";
+        const money = c.price_missing || c.value_label === "price missing"
+          ? " · price missing"
+          : c.market_value != null
+            ? " · $" + Number(c.market_value).toLocaleString(undefined, { maximumFractionDigits: 2 })
+            : "";
         const book = c.book_pct != null
           ? " · book " + Number(c.book_pct).toFixed(1).replace(/\.0$/, "") + "%"
           : "";

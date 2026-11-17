@@ -442,17 +442,34 @@ def _fund_holdings_html(h: Any) -> str:
     for r in h.get("rows") or []:
         drift = r.get("drift_pp")
         cls = ' class="num fund-drift-neg"' if isinstance(drift, (int, float)) and abs(drift) >= 5 else ' class="num"'
+        missing = bool(r.get("price_missing"))
+
+        def _cell(key: str, fmt) -> str:
+            if missing and r.get(key) is None:
+                return "price missing"
+            return fmt(r.get(key))
+
         rows.append(
             f'<tr data-symbol="{_e(str(r.get("symbol", "")))}"><td><b>{_e(str(r.get("symbol", "")))}</b></td>'
             f'<td>{"pinned" if r.get("pinned") else "watch only"}</td><td>{_e(str(r.get("sleeve") or DASH))}</td>'
-            f'<td class="num">{_fmt_pct(r.get("weight_nav_pct"))}</td><td class="num">{_fmt_pct(r.get("stocks_sleeve_weight_pct"))}</td>'
-            f'<td class="num">{_fmt_pct(r.get("target_pct"))}</td><td{cls}>{_fmt_pp(drift)}</td></tr>'
+            f'<td class="num">{_cell("weight_nav_pct", _fmt_pct)}</td><td class="num">{_cell("stocks_sleeve_weight_pct", _fmt_pct)}</td>'
+            f'<td class="num">{_fmt_pct(r.get("target_pct"))}</td><td{cls}>{_cell("drift_pp", _fmt_pp)}</td></tr>'
         )
     if h.get("cash_weight_pct") is not None:
         rows.append(f'<tr><td><b>cash</b></td><td>{DASH}</td><td>{DASH}</td><td class="num">{_fmt_pct(h["cash_weight_pct"])}</td><td></td><td></td><td></td></tr>')
+    def _sleeve_weight(s: dict) -> str:
+        if s.get("price_missing") or s.get("weight_deployed_pct") is None and s.get("price_missing"):
+            return "price missing"
+        return _fmt_pct(s.get("weight_deployed_pct"))
+
+    def _sleeve_drift(s: dict) -> str:
+        if s.get("price_missing"):
+            return "price missing"
+        return _fmt_pp(s.get("drift_pp"))
+
     sl = "".join(
-        f'<li>{_e(s.get("label", ""))}: {_fmt_pct(s.get("weight_deployed_pct"))} of deployed vs {_fmt_pct(s.get("target_pct"))} target '
-        f'({_fmt_pp(s.get("drift_pp"))}, {"in band" if s.get("in_band") else "outside band" if s.get("in_band") is False else "band unknown"})</li>'
+        f'<li>{_e(s.get("label", ""))}: {_sleeve_weight(s)} of deployed vs {_fmt_pct(s.get("target_pct"))} target '
+        f'({_sleeve_drift(s)}, {"in band" if s.get("in_band") else "outside band" if s.get("in_band") is False else "band unknown"})</li>'
         for s in h.get("sleeves") or []
     )
     note = f'<p class="fund-meta">{_e(h["note"])}</p>' if h.get("note") else ""

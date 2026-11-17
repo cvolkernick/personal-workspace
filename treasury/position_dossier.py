@@ -491,10 +491,14 @@ def _stance(
             f"Standing new-money consider-share is {consider:g}% of the next dollar "
             f"({role_l}). That is policy bias, not an order ticket."
         )
-    if held and book_pct is not None:
+    if held and book_pct is not None and (chip or {}).get("market_value") is not None:
         picture_bits.append(
             f"Already held: {book_pct:g}% of deployed agentic equity "
             f"(${(chip or {}).get('market_value')}). Book % is the badge, not the axis."
+        )
+    elif held and ((chip or {}).get("price_missing") or (chip or {}).get("market_value") is None):
+        picture_bits.append(
+            "Already held. Live value: price missing. Not valued at cost basis."
         )
     elif held:
         picture_bits.append("Held in the agentic book. Book % is annotation only.")
@@ -517,6 +521,13 @@ def _stance(
         "held": held,
         "book_pct": book_pct,
         "market_value": (chip or {}).get("market_value"),
+        "value_label": (
+            "price missing"
+            if (chip or {}).get("price_missing") or (
+                held and (chip or {}).get("market_value") is None and "market_value" in (chip or {})
+            )
+            else None
+        ),
         "quantity": (chip or {}).get("quantity"),
         "auto_buy": False,
         "core_allowlist": role in ("preferred_core", "core"),

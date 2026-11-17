@@ -36,6 +36,7 @@ Rules:
 - Flag stale or missing feeds when relevant (as_of ages, unknown LTV, empty X Money, etc.).
 - Coach allocations are **advisory only** — do not claim money was moved.
 - Fund manager is agentic-only; no advice to trade the primary brokerage margin book.
+- A fund weight or holding labeled `price missing` (or a null market_value) has no market price. Say "price missing". Never replace it with cost basis or average buy price.
 - Format replies in **GitHub-flavored Markdown** (## headings, bullets, **bold**, `code`).
 - When comparing options or numbers, use a **GFM pipe table** with a header row and
   a separator row (`| --- | --- |`). Keep one row per line; never put whole tables
@@ -250,15 +251,40 @@ def build_treasury_context(
     for h in fma.get("holdings") or fma.get("positions") or []:
         if not isinstance(h, dict):
             continue
-        holdings.append(
-            {
-                "symbol": h.get("symbol") or h.get("ticker"),
-                "market_value": h.get("market_value") or h.get("value_usd"),
-                "qty": h.get("quantity") or h.get("qty"),
-            }
-        )
+        # An explicit null market_value is a missing price. Do not fill it
+        # from value_usd or any cost field.
+        if "market_value" in h and h.get("market_value") is None:
+            mv: Any = None
+            value_label = "price missing"
+        else:
+            mv = h.get("market_value")
+            if mv is None:
+                mv = h.get("value_usd")
+            value_label = None
+        row = {
+            "symbol": h.get("symbol") or h.get("ticker"),
+            "market_value": mv,
+            "qty": h.get("quantity") or h.get("qty"),
+        }
+        if value_label:
+            row["value_label"] = value_label
+        holdings.append(row)
         if len(holdings) >= 12:
             break
+
+    weights = fma.get("weights_of_deployed")
+    weights_label = None
+    if isinstance(weights, dict) and (
+        weights.get("btc_digital_credit") is None or weights.get("stocks_growth") is None
+    ):
+        missing_px = "missing_market_price" in str(fma.get("valuation") or "")
+        if not missing_px:
+            missing_px = any(
+                isinstance(p, dict) and "market_value" in p and p.get("market_value") is None
+                for p in (fma.get("positions") or fma.get("holdings") or [])
+            )
+        if missing_px:
+            weights_label = "price missing"
 
     return {
         "as_of": snap.get("as_of") or treasury.get("as_of"),
@@ -342,6 +368,7 @@ def build_treasury_context(
             "buying_power_usd": fma.get("buying_power_usd"),
             "pending_deposits_usd": fma.get("pending_deposits_usd"),
             "weights_of_deployed": fma.get("weights_of_deployed"),
+            **({"weights_label": weights_label} if weights_label else {}),
             "policy_live": (fm.get("policy_summary") or {}).get("live"),
             "holdings": holdings,
             "last_decision_summary": (
