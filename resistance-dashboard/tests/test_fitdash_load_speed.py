@@ -10,6 +10,7 @@ import io
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -461,14 +462,32 @@ class PayloadEquality(unittest.TestCase):
         )
 
         def run(parallel: str):
-            with mock.patch.dict(os.environ, {"FITDASH_BUILD_PARALLEL": parallel}, clear=False), \
-                 mock.patch.object(server, "local_now", return_value=frozen), \
-                 mock.patch("rt_dashboard.timeutil.local_now", return_value=frozen), \
-                 mock.patch.object(server, "load_health_cache", return_value=(snap, time.time(), {"hit": True, "fresh": True, "age_sec": 1})), \
-                 mock.patch.object(server, "hidrate_credentials_present", return_value=False), \
-                 mock.patch.object(server, "maybe_schedule_background_refresh", return_value=False), \
-                 mock.patch.object(server, "save_health_cache", return_value=None):
-                return server.build_dashboard_data(force_refresh=False, user_id="eq-user")
+            # A build persists the coach weekly store. The next build must not
+            # read that file, or tdee_history differs for reasons other than
+            # threading.
+            with tempfile.TemporaryDirectory(prefix="fitdash-eq-") as td:
+                root = Path(td)
+                env = {
+                    "FITDASH_BUILD_PARALLEL": parallel,
+                    "FITDASH_COACH_STATE_DIR": str(root / "coach"),
+                    "RESISTANCE_DASHBOARD_CONFIG_DIR": str(root / "config"),
+                    "FITDASH_PHASE_BAROMETER_DIR": str(root / "phase"),
+                    "FITDASH_HSA_DIR": str(root / "hsa"),
+                    "FITDASH_LABS_DIR": str(root / "labs"),
+                    "FITDASH_DB_PATH": str(root / "workouts.sqlite3"),
+                    "DASHBOARD_CACHE_DIR": str(root / "cache"),
+                    "LOCAL_WORKSPACE_DIR": str(root / "workspace"),
+                    "FITDASH_QUEST_GT_SYNC": "0",
+                    "GITHUB_PREFER_LOCAL": "1",
+                }
+                with mock.patch.dict(os.environ, env, clear=False), \
+                     mock.patch.object(server, "local_now", return_value=frozen), \
+                     mock.patch("rt_dashboard.timeutil.local_now", return_value=frozen), \
+                     mock.patch.object(server, "load_health_cache", return_value=(snap, time.time(), {"hit": True, "fresh": True, "age_sec": 1})), \
+                     mock.patch.object(server, "hidrate_credentials_present", return_value=False), \
+                     mock.patch.object(server, "maybe_schedule_background_refresh", return_value=False), \
+                     mock.patch.object(server, "save_health_cache", return_value=None):
+                    return server.build_dashboard_data(force_refresh=False, user_id="eq-user")
 
         def _strip(node):
             if isinstance(node, dict):
