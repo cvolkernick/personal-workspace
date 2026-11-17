@@ -487,7 +487,7 @@ class ScoreboardTests(unittest.TestCase):
         )
         names = [row["name"] for row in plan["exercises"]]
         bands = plan["volume"]["planning_bands"]
-        self.assertIn("Leg Press", names)
+        self.assertIn("Hack Squat", names)
         self.assertTrue(
             "Seated Leg Curls" in names or "Lying Leg Curl" in names,
             names,
@@ -508,7 +508,7 @@ class ScoreboardTests(unittest.TestCase):
         )
         without_curl = hamstrings - float(curl["set_credits"]["hamstrings"])
         self.assertLess(without_curl, bands["hamstrings"]["min"])
-        press = next(row for row in plan["exercises"] if row["name"] == "Leg Press")
+        press = next(row for row in plan["exercises"] if row["name"] == "Hack Squat")
         self.assertEqual(press["movement"], "compound")
         crunch = next(
             row for row in plan["exercises"]
@@ -612,13 +612,13 @@ class ScoreboardTests(unittest.TestCase):
         morning_names = [row["name"] for row in morning["exercises"]]
         after_names = [row["name"] for row in after["exercises"]]
         self.assertIn("Calf Extensions", morning_names)
-        self.assertIn("Leg Press", morning_names)
+        self.assertIn("Hack Squat", morning_names)
         self.assertEqual(
             after_names,
             [name for name in morning_names if name != "Calf Extensions"],
         )
         self.assertNotIn("DB Calf Raises", after_names)
-        self.assertIn("Leg Press", after_names)
+        self.assertIn("Hack Squat", after_names)
         self.assertLessEqual(_hard_sets(after), 14)
         for row in after["exercises"]:
             self.assertLessEqual(int((row.get("prescription") or {}).get("sets") or 0), 4)

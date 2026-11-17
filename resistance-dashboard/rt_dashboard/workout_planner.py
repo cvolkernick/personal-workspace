@@ -369,6 +369,7 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "barbell-row": HORIZONTAL_ROW_FAMILY,
     "smith-row": HORIZONTAL_ROW_FAMILY,
     "leg-press": KNEE_DOMINANT_FAMILY,
+    "hack-squat": KNEE_DOMINANT_FAMILY,
     "goblet-squat": KNEE_DOMINANT_FAMILY,
     "barbell-deadlift": DEADLIFT_FAMILY,
     "trap-bar-deadlift": DEADLIFT_FAMILY,
@@ -3794,6 +3795,70 @@ def shape_session_coverage(
             return MAIN_COMPOUND_SET_CAP
         return ACCESSORY_SET_CAP
 
+    def _rotate_squat_slot() -> None:
+        """One knee-dominant compound: Hack Squat and Leg Press by recency.
+
+        Hack Squat is required when the previous legs day did not include it,
+        so every pair of consecutive legs days has it. A pinned squat stays.
+        If both are already in the plan, leave them for the order pass.
+        """
+        hack = pool_by_id.get("hack-squat")
+        press = pool_by_id.get("leg-press")
+        options = [ex for ex in (hack, press) if isinstance(ex, dict)]
+        if not options:
+            return
+        option_ids = {str(ex.get("id") or "") for ex in options}
+        knees = [row for row in rows if pattern_family(row) == KNEE_DOMINANT_FAMILY]
+        if any(str(row.get("id") or "") in pin_set for row in knees):
+            return
+        present = {str(row.get("id") or "") for row in knees}
+        if "hack-squat" in present and "leg-press" in present:
+            return
+        previous = recent_sets[0] if recent_sets else set()
+        if hack is not None and "hack-squat" not in previous:
+            want = hack
+        else:
+            picked = pick_rotated_accessories(options, seen, day, 1)
+            want = picked[0] if picked else options[0]
+        want_id = str(want.get("id") or "")
+        if want_id in present and not (present - {want_id} - (set(str(row.get("id") or "") for row in knees) - option_ids)):
+            # The wanted squat is already the only hack/leg-press row.
+            extras = [row for row in knees if str(row.get("id") or "") in option_ids and str(row.get("id") or "") != want_id]
+            if not extras:
+                return
+        carried = 2
+        for row in list(rows):
+            eid = str(row.get("id") or "")
+            if pattern_family(row) != KNEE_DOMINANT_FAMILY or eid == want_id:
+                continue
+            if eid in pin_set:
+                continue
+            carried = max(carried, _row_sets(row))
+            rows.remove(row)
+        if any(str(row.get("id") or "") == want_id for row in rows):
+            return
+        use = min(max(carried, 2), MAIN_COMPOUND_SET_CAP)
+        if room() < 2:
+            return
+        use = min(use, room())
+        if use < 2:
+            return
+        rows.append(_coverage_plan_row(
+            want,
+            use,
+            sessions=sessions,
+            by_id=by_id,
+            sec_frac=sec_frac,
+            note="Squat slot rotated by recency.",
+            recovery_score=recovery_score,
+            continuity=continuity,
+            recovery_rhr_under=recovery_rhr_under,
+            equipment=equipment,
+            deload=deload,
+            weighins=weighins,
+            day=day,
+        ))
+
     def _clamp_row_sets() -> None:
         main_id = _main_compound_id()
         for row in rows:
@@ -3803,6 +3868,7 @@ def shape_session_coverage(
 
     # Per-exercise caps before the session cap, so a 5-set accessory
     # shrinks instead of being deleted to make room.
+    _rotate_squat_slot()
     _clamp_row_sets()
 
     while _sum_row_sets(rows) > int(session_cap):

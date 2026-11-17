@@ -1870,8 +1870,7 @@
         10
       ],
       "priority": 6,
-      "available": false,
-      "notes": "Credit-only alias for a logged Hack Squat. Not auto-prescribed."
+      "available": true
     },
     {
       "id": "leg-extension",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import unittest
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
@@ -11,10 +12,12 @@ from rt_dashboard.workout_plan_store import (
 )
 from rt_dashboard.workout_planner import (
     catalog_exercises,
+    credit_sets_for_exercise,
     default_catalog,
     generate_workout_plan,
     postshape_ai_workout,
     rotation_candidates_for,
+    weekly_set_tally,
 )
 
 RAMP = {
@@ -749,6 +752,97 @@ class AccessoryRotation(unittest.TestCase):
         # Lateral Raises is the available delt raise. It is not on every push day.
         self.assertIn(("Lateral Raises",), delts)
         self.assertTrue(any(item != ("Lateral Raises",) for item in delts), delts)
+
+    def test_hack_squat_is_in_every_pair_of_legs_days(self):
+        days = ["2026-11-11", "2026-11-14", "2026-11-17", "2026-11-20", "2026-11-23"]
+        plans = self._three("legs", days)
+        id_sets = [set(_ids(plan)) for plan in plans]
+        for left, right in zip(id_sets, id_sets[1:]):
+            self.assertTrue("hack-squat" in left or "hack-squat" in right, (left, right))
+        for plan in plans:
+            for row in plan["exercises"]:
+                self.assertGreaterEqual(_sets(row), 2, row["name"])
+            names = [row["name"] for row in plan["exercises"]]
+            if "Hack Squat" in names and "Leg Press" in names:
+                self.assertLess(names.index("Hack Squat"), names.index("Leg Press"))
+
+    def test_hack_before_leg_press_when_both_are_written(self):
+        out = postshape_ai_workout(
+            {
+                "source": "grok",
+                "session_type": "legs",
+                "is_rest_day": False,
+                "exercises": [
+                    {"name": "Leg Press", "prescription": {"sets": 2, "reps": 8, "weight_lbs": 300}},
+                    {"name": "Hack Squat", "prescription": {"sets": 2, "reps": 8, "weight_lbs": 180}},
+                    {"name": "RDL", "prescription": {"sets": 2, "reps": 6, "weight_lbs": 135}},
+                ],
+            },
+            self.catalog,
+            [],
+            goals={"default_hard_sets": 2, "session_working_set_cap": 14},
+            as_of="2026-11-18",
+        )
+        names = [row["name"] for row in out["exercises"]]
+        self.assertIn("Hack Squat", names)
+        self.assertIn("Leg Press", names)
+        self.assertLess(names.index("Hack Squat"), names.index("Leg Press"))
+
+    def test_unavailable_hack_falls_back_to_leg_press(self):
+        catalog = copy.deepcopy(self.catalog)
+        for row in catalog["exercises"]:
+            if row["id"] == "hack-squat":
+                row["available"] = False
+        plan = generate_workout_plan(
+            catalog,
+            dict(RAMP),
+            [
+                Session(
+                    date="2026-11-10",
+                    session_type="pull",
+                    exercises=[
+                        ExerciseEntry(
+                            name="Pulldowns",
+                            sets=[SetEntry(weight_lbs=100, sets=2, reps=8)],
+                        )
+                    ],
+                )
+            ],
+            recovery_score=80,
+            session_type="legs",
+            as_of="2026-11-11",
+        )
+        names = [row["name"] for row in plan["exercises"]]
+        self.assertIn("Leg Press", names)
+        self.assertNotIn("Hack Squat", names)
+        self.assertGreaterEqual(self._total(plan), 10)
+
+    def test_logged_hack_squat_still_credits_quads_and_glutes(self):
+        by_id = {row["id"]: row for row in self.catalog["exercises"]}
+        row = by_id["hack-squat"]
+        self.assertTrue(row["available"])
+        self.assertEqual(row["primary_muscles"], ["quads"])
+        self.assertEqual(row["secondary_muscles"], ["glutes"])
+        self.assertNotIn("notes", row)
+        expected = credit_sets_for_exercise(["quads"], ["glutes"], 2, secondary_fraction=0.5)
+        tally = weekly_set_tally(
+            [
+                Session(
+                    date="2026-11-11",
+                    session_type="legs",
+                    exercises=[
+                        ExerciseEntry(
+                            name="Hack Squat",
+                            sets=[SetEntry(weight_lbs=180, sets=2, reps=8)],
+                        )
+                    ],
+                )
+            ],
+            self.catalog,
+            as_of="2026-11-11",
+        )
+        self.assertEqual(tally["by_muscle"]["quads"], expected["quads"])
+        self.assertEqual(tally["by_muscle"]["glutes"], expected["glutes"])
 
 
 if __name__ == "__main__":
