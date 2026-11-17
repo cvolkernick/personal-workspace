@@ -73,6 +73,8 @@ dashboard/branches.txt
 # Resistance dashboard local secrets (if ever placed under repo)
 resistance-dashboard/.env
 resistance-dashboard/.env.local
+resistance-dashboard/ops/backup/recipients.txt
+resistance-dashboard/ops/backup/backup.env
 
 # Plaid MCP secrets (live tokens belong in ~/.config/plaid-bank/ only)
 treasury/plaid_mcp/.env

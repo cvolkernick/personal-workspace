@@ -1,0 +1,17 @@
+[Unit]
+Description=FitDash encrypted backup (Turso + Pi-local state)
+After=network-online.target
+Wants=network-online.target
+OnFailure=fitdash-backup-failed.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace/resistance-dashboard
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace/resistance-dashboard:%h/personal-workspace/resistance-dashboard/ops/backup
+EnvironmentFile=-%h/.config/resistance-dashboard/backup.env
+ExecStart=/usr/bin/python3 %h/personal-workspace/resistance-dashboard/ops/backup/fitdash_backup.py
+# Exit 75 is the workout-write deferral. It is success for alerting.
+# ExecStopPost starts the 30-minute retry timer only for that code.
+ExecStopPost=/usr/bin/python3 %h/personal-workspace/resistance-dashboard/ops/backup/fitdash_backup.py --schedule-retry
+SuccessExitStatus=75

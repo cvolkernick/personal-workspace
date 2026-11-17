@@ -1,0 +1,11 @@
+[Unit]
+Description=FitDash backup daily at 03:40 America/New_York
+
+[Timer]
+OnCalendar=*-*-* 03:40:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=fitdash-backup.service
+
+[Install]
+WantedBy=timers.target

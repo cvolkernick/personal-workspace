@@ -1,0 +1,7 @@
+[Unit]
+Description=Retry FitDash backup 30 minutes after a deferred run
+
+[Timer]
+OnActiveSec=30min
+AccuracySec=1min
+Unit=fitdash-backup.service
