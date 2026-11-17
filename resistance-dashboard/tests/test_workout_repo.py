@@ -55,6 +55,20 @@ class WorkoutRepoTests(unittest.TestCase):
         self.assertEqual(self.repo.count(), 1)
         self.assertEqual(self.repo.list_sessions()[0].exercises[0].sets[0].weight_lbs, 55)
 
+    def test_import_replaces_the_row(self) -> None:
+        """Markdown import still replaces the row. It does not union sets."""
+        self.repo.upsert_session(self._session())
+        replacement = self._session()
+        replacement.exercises[0].sets[0].weight_lbs = 70
+        result = self.repo.import_sessions([replacement])
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.repo.count(), 1)
+        stored = self.repo.list_sessions()[0]
+        self.assertEqual(len(stored.exercises), 1)
+        self.assertEqual(len(stored.exercises[0].sets), 1)
+        self.assertEqual(stored.exercises[0].sets[0].weight_lbs, 70)
+        self.assertEqual(stored.source_file, "fitness/workouts/push.md")
+
     def test_import_from_markdown_fixture(self) -> None:
         root = Path(self.tmp.name) / "ws"
         wdir = root / "fitness" / "workouts"

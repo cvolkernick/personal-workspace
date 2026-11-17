@@ -399,19 +399,28 @@ class WorkoutRepository:
         """Write ``session`` at its date. Delete the source only after that row reads back.
 
         Keeps ``closed_at`` (created_at) so wake membership does not jump.
-        A failed write leaves the source row in place.
+        A failed write leaves the source row in place. The source row is
+        deleted only when ``_session_on`` shows every one of its sets on
+        the destination.
         """
         src_day = str(from_date or "")[:10]
         result = self.upsert_session(session)
         dest_day = str(session.date)[:10]
         if not src_day or src_day == dest_day:
             return result
-        from .workout_log import logged_session_visible
+        from .workout_log import (
+            ensure_source_sets_on_readback,
+            logged_session_visible,
+        )
 
         read = self._session_on(dest_day, session.session_type)
+        source = self._session_on(src_day, session.session_type)
+        if source is not None:
+            ensure_source_sets_on_readback(source, read)
         if not logged_session_visible(session, read):
             raise RuntimeError("write not visible on readback")
-        self.delete_session(src_day, session.session_type)
+        if source is not None:
+            self.delete_session(src_day, session.session_type)
         return result
 
     def upsert_session(self, session: Session) -> Dict[str, Any]:
