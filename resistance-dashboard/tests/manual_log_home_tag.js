@@ -120,7 +120,8 @@ for (const catalogPath of catalogs) {
     return tags.filter((t) => PPL.includes(t)).length > 1;
   });
   assert(
-    multi.map((ex) => ex.id).sort().join(",") === "back-extension,smith-shrugs",
+    multi.map((ex) => ex.id).sort().join(",") ===
+      "ab-crunch-machine,back-extension,back-extension-45,cable-crunch,roman-chair-raise,smith-shrugs",
     catalogPath + " unexpected multi-tag lifts: " + multi.map((ex) => ex.id).join(",")
   );
 

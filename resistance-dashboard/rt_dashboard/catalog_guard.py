@@ -623,16 +623,29 @@ def guard_plan(
             row["id"] = cid
         used.add(cid)
         if _weight_of(row) is None and not _is_assisted(cat_ex):
-            last = _has_history(sessions, cat_ex, by_id)
-            if last is None:
-                _apply_start(row, cat_ex, cat, sessions, equipment, cfg)
-            else:
-                # History exists but no load came through: show the cue, never blank.
-                text = str((cfg.get("starting_weight") or {}).get("no_history_text") or DEFAULT_NO_HISTORY_TEXT)
-                row["weight_text"] = text
+            if cat_ex.get("starting_load") is False:
+                # No invented load. The first log is the first number.
                 rx = dict(row.get("prescription") or {})
-                rx["weight_text"] = text
+                for target in (row, rx):
+                    target["weight_lbs"] = None
+                    target["load"] = None
+                    target["load_source"] = "unlogged"
+                row.pop("weight_text", None)
+                rx.pop("weight_text", None)
+                row.pop("starting_estimate", None)
+                rx.pop("starting_estimate", None)
                 row["prescription"] = rx
+            else:
+                last = _has_history(sessions, cat_ex, by_id)
+                if last is None:
+                    _apply_start(row, cat_ex, cat, sessions, equipment, cfg)
+                else:
+                    # History exists but no load came through: show the cue, never blank.
+                    text = str((cfg.get("starting_weight") or {}).get("no_history_text") or DEFAULT_NO_HISTORY_TEXT)
+                    row["weight_text"] = text
+                    rx = dict(row.get("prescription") or {})
+                    rx["weight_text"] = text
+                    row["prescription"] = rx
         out_rows.append(row)
     plan = dict(plan)
     plan["exercises"] = out_rows

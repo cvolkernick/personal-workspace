@@ -1217,7 +1217,8 @@
       "id": "roman-chair-raise",
       "name": "Roman Chair Knee Raise",
       "session_types": [
-        "legs"
+        "legs",
+        "push"
       ],
       "primary_muscles": [
         "abs"
@@ -1239,7 +1240,11 @@
       ],
       "priority": 4,
       "available": true,
-      "notes": "Programmed abs lift. Gym roman chair / captain's chair. Hip-flexor knee raises stay tagged hip_flexors and are not retagged as abs."
+      "aliases": [
+        "Roman Chair Leg Raise",
+        "Captain's Chair Leg Raise"
+      ],
+      "notes": "Programmed abs backup. Gym roman chair / captain's chair knee raise or leg raise. Reused instead of a second captain's-chair row. Hip-flexor knee raises stay tagged hip_flexors and are not retagged as abs."
     },
     {
       "id": "decline-sit-up",
@@ -1867,6 +1872,138 @@
       "priority": 6,
       "available": false,
       "notes": "Credit-only alias for a logged Hack Squat. Not auto-prescribed."
+    },
+    {
+      "id": "leg-extension",
+      "name": "Leg Extension Machine",
+      "session_types": [
+        "legs"
+      ],
+      "primary_muscles": [
+        "quads"
+      ],
+      "secondary_muscles": [],
+      "volume_primary": [
+        "quads"
+      ],
+      "volume_secondary": [],
+      "movement": "isolation",
+      "movement_pattern": "knee_extension",
+      "equipment": [
+        "machine"
+      ],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [
+        10,
+        15
+      ],
+      "priority": 8,
+      "available": true,
+      "starting_load": false,
+      "rep_band_locked": true,
+      "notes": "Selectorized leg extension. Quad isolation beside the squat or leg press. Double progression 10-15. No starting load until the first log."
+    },
+    {
+      "id": "ab-crunch-machine",
+      "name": "Ab Crunch Machine",
+      "session_types": [
+        "legs",
+        "push"
+      ],
+      "primary_muscles": [
+        "abs"
+      ],
+      "secondary_muscles": [],
+      "volume_primary": [
+        "abs"
+      ],
+      "volume_secondary": [],
+      "movement": "isolation",
+      "movement_pattern": "trunk_flexion",
+      "equipment": [
+        "machine"
+      ],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [
+        10,
+        15
+      ],
+      "priority": 6,
+      "available": true,
+      "starting_load": false,
+      "rep_band_locked": true,
+      "notes": "Primary abs pick. Selectorized crunch. Double progression 10-15. No starting load until the first log. Backups are Cable Crunch and Roman Chair Knee Raise."
+    },
+    {
+      "id": "cable-crunch",
+      "name": "Cable Crunch",
+      "session_types": [
+        "legs",
+        "push"
+      ],
+      "primary_muscles": [
+        "abs"
+      ],
+      "secondary_muscles": [],
+      "volume_primary": [
+        "abs"
+      ],
+      "volume_secondary": [],
+      "movement": "isolation",
+      "movement_pattern": "trunk_flexion",
+      "equipment": [
+        "cable"
+      ],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [
+        10,
+        15
+      ],
+      "priority": 5,
+      "available": true,
+      "starting_load": false,
+      "rep_band_locked": true,
+      "notes": "Abs backup when the crunch machine is unavailable. Kneeling cable crunch. Double progression 10-15. No starting load until the first log."
+    },
+    {
+      "id": "back-extension-45",
+      "name": "45-Degree Back Extension",
+      "session_types": [
+        "legs",
+        "pull"
+      ],
+      "primary_muscles": [
+        "lower_back",
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "volume_primary": [
+        "lower_back",
+        "glutes"
+      ],
+      "volume_secondary": [
+        "hamstrings"
+      ],
+      "movement": "isolation",
+      "equipment": [
+        "barbell"
+      ],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [
+        10,
+        15
+      ],
+      "priority": 4,
+      "available": true,
+      "starting_load": false,
+      "rep_band_locked": true,
+      "notes": "Free-weight back extension on a 45-degree / hyperextension bench. Bodyweight, or a plate held at the chest. Same slot as the back extension machine, and only while the session hinge stays under 2 sets. No starting load until the first log."
     }
   ]
 }

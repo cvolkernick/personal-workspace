@@ -471,6 +471,32 @@ class StaticAssets(unittest.TestCase):
     def _headers(self, h):
         return {k: v for k, v in h.sent if k != "status"}
 
+    def test_gzip_q0_is_not_accepted(self):
+        import server
+
+        self.assertFalse(server.accepts_gzip("gzip;q=0"))
+        self.assertFalse(server.accepts_gzip("gzip; q=0"))
+        self.assertFalse(server.accepts_gzip("GZIP;Q=0.0"))
+        self.assertFalse(server.accepts_gzip("br, gzip;q=0"))
+        self.assertFalse(server.accepts_gzip("gzip;q=0, *;q=1"))
+        self.assertFalse(server.accepts_gzip("identity"))
+        self.assertFalse(server.accepts_gzip(""))
+        self.assertTrue(server.accepts_gzip("gzip"))
+        self.assertTrue(server.accepts_gzip("gzip, br"))
+        self.assertTrue(server.accepts_gzip("gzip;q=0.5"))
+        self.assertTrue(server.accepts_gzip("*;q=1"))
+        h = self._handler("/app.js?v=trends-cpf-order-1", {"Accept-Encoding": "gzip;q=0"})
+        with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
+            body = h.send_head()
+        hd = self._headers(h)
+        self.assertNotIn("Content-Encoding", hd)
+        self.assertEqual(body.read(), (Path(h.directory) / "app.js").read_bytes())
+        h_ok = self._handler("/app.js?v=trends-cpf-order-1", {"Accept-Encoding": "gzip;q=0.8, identity;q=0.1"})
+        with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
+            packed = h_ok.send_head()
+        self.assertEqual(self._headers(h_ok)["Content-Encoding"], "gzip")
+        self.assertEqual(gzip.decompress(packed.read()), (Path(h.directory) / "app.js").read_bytes())
+
     def test_versioned_js_gzip_immutable_and_304(self):
         h = self._handler("/app.js?v=trends-cpf-order-1", {"Accept-Encoding": "gzip, br"})
         with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):

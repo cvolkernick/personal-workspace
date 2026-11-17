@@ -1726,6 +1726,43 @@ _STATIC_ENTRIES: Dict[str, Dict[str, Any]] = {}
 _STATIC_LOCK = _threading.Lock()
 
 
+def accepts_gzip(header: Optional[str]) -> bool:
+    """True when the client accepts gzip.
+
+    ``gzip;q=0`` is an explicit refusal (RFC 9110). A missing q is 1.
+    An explicit gzip q wins over ``*``.
+    """
+    if not header:
+        return False
+    gzip_q: Optional[float] = None
+    star_q: Optional[float] = None
+    for part in str(header).split(","):
+        bits = [bit.strip() for bit in part.split(";") if bit.strip()]
+        if not bits:
+            continue
+        coding = bits[0].lower()
+        q = 1.0
+        for param in bits[1:]:
+            if "=" not in param:
+                continue
+            key, val = param.split("=", 1)
+            if key.strip().lower() != "q":
+                continue
+            try:
+                q = float(val.strip())
+            except ValueError:
+                q = 0.0
+        if coding == "gzip":
+            gzip_q = q
+        elif coding == "*":
+            star_q = q
+    if gzip_q is not None:
+        return gzip_q > 0
+    if star_q is not None:
+        return star_q > 0
+    return False
+
+
 def _static_entry(fs_path: str) -> Dict[str, Any]:
     """Bytes, gzip body and ETag for one static file, cached by mtime/size."""
     import gzip
@@ -1812,8 +1849,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except OSError:
             return super().send_head()
         cache_control = static_cache_control(parsed.path, parsed.query)
-        accept = (self.headers.get("Accept-Encoding") or "").lower()
-        use_gz = entry["gz"] is not None and "gzip" in accept
+        accept = self.headers.get("Accept-Encoding") or ""
+        use_gz = entry["gz"] is not None and accepts_gzip(accept)
         etag = '"%s%s"' % (entry["etag"], "-gz" if use_gz else "")
         inm = self.headers.get("If-None-Match") or ""
         tags = {t.strip().removeprefix("W/") for t in inm.split(",") if t.strip()}
