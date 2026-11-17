@@ -675,6 +675,7 @@ def generate_grok_plans(
                 equipment=equipment if isinstance(equipment, dict) else None,
                 as_of=as_of,
                 recovery=recovery if isinstance(recovery, dict) else None,
+                user_id=user_id,
             )
         except Exception as exc:  # noqa: BLE001
             _log.warning(

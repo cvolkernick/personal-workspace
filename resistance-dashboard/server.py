@@ -988,6 +988,7 @@ def _section_workout_store(
             now=now,
             weighins=list(health.weight or []),
             training_objective=training_objective,
+            user_id=str(uid or "") or None,
         )
         # Effective goals include autonomous focus_muscles from plan gen
         effective_goals = dict(wo["goals"] or {})
@@ -2118,6 +2119,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 weighins=list((data.get("health") or {}).get("weight") or [])
                 if isinstance(data.get("health"), dict)
                 else list(getattr(data.get("health"), "weight", None) or []),
+                user_id=str(uid or "") or None,
             )
             return {"ok": True, "action": kind, "plan": plan}
         return {"ok": False, "action": kind, "error": f"unknown action {kind}"}

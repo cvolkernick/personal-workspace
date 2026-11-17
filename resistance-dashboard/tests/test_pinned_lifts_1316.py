@@ -91,8 +91,15 @@ class LibraryReplay1021Tests(unittest.TestCase):
             if not is_plan_accessory(ex, GOALS):
                 self.assertGreaterEqual(row[1], MAIN_LIFT_MIN_SETS, row)
         self.assertTrue(any(not is_plan_accessory(e, GOALS) for e in plan["exercises"][1:]))
-        # Spent weekly budget trims accessories; never 1 set per lift.
-        self.assertFalse([e["name"] for e in plan["exercises"] if is_plan_accessory(e, GOALS)])
+        # Weekly volume may put accessories back so the day stays at 10 sets.
+        # None of those accessories is a single set, and none is over 3.
+        accessories = [e for e in plan["exercises"] if is_plan_accessory(e, GOALS)]
+        self.assertTrue(accessories)
+        for ex in accessories:
+            sets = int((ex.get("prescription") or {}).get("sets") or 0)
+            self.assertGreaterEqual(sets, 2, ex["name"])
+            self.assertLessEqual(sets, 3, ex["name"])
+        self.assertGreaterEqual(sum(r[1] for r in rows), 10)
         self.assertFalse(all(r[1] == 1 for r in rows))
         self.assertIsNone(saved_plan_problem(
             {**plan, "session_type": "pull"}, "pull", ["assisted-pullups"]))

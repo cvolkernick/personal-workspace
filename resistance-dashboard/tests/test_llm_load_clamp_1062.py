@@ -289,8 +289,8 @@ class LlmLoadClamp1062(unittest.TestCase):
         self.assertEqual(row["load_source"], "sop")
         self.assertEqual(row["weight_lbs"], 45.0)
         self.assertEqual(row["reps"], 7)
-        # Post-shape caps the legs hinge at the template count. The SOP load stays.
-        self.assertEqual(row["prescription"]["sets"], 2)
+        # Post-shape no longer forces a template set count. The SOP load stays.
+        self.assertEqual(row["prescription"]["sets"], 3)
 
     def test_postshape_error_keeps_the_clamped_plan(self):
         def fake_chat(messages, **kwargs):
