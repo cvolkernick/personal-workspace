@@ -304,6 +304,20 @@ NAME_ALIASES = {
     "standing calf raises": "db-calf-raises",
     "standing calf raise": "db-calf-raises",
     "back extension machine": "back-extension",
+    "45-degree back extension": "back-extension-45",
+    "45 degree back extension": "back-extension-45",
+    "hyperextension bench": "back-extension-45",
+    "leg extension": "leg-extension",
+    "leg extensions": "leg-extension",
+    "leg extension machine": "leg-extension",
+    "ab crunch": "ab-crunch-machine",
+    "ab crunch machine": "ab-crunch-machine",
+    "machine crunch": "ab-crunch-machine",
+    "cable crunch": "cable-crunch",
+    "cable crunches": "cable-crunch",
+    "roman chair leg raise": "roman-chair-raise",
+    "captain's chair leg raise": "roman-chair-raise",
+    "captains chair leg raise": "roman-chair-raise",
     "smith bench": "smith-flat-bench",
     "smith flat bench": "smith-flat-bench",
     "smith incline bench": "smith-incline-bench",
@@ -1047,7 +1061,9 @@ def pattern_family(ex: Optional[dict]) -> Optional[str]:
         return HORIZONTAL_ROW_FAMILY
     if any(tok in name for tok in ("pulldown", "pullup", "pull-up", "chin-up", "chinup")):
         return VERTICAL_PULL_FAMILY
-    # Legs: one knee-dominant compound, one deadlift. RDL stays its own slot.
+    # Legs: one knee-dominant compound. Barbell and trap-bar deadlifts share
+    # this family. RDL is the preferred hinge and is kept out of this map;
+    # primary_hinge_key still allows only one of RDL / deadlift / trap-bar.
     if "deadlift" in name:
         return DEADLIFT_FAMILY
     if "quads" in prim and any(tok in name for tok in ("squat", "leg press", "lunge")):
@@ -1106,7 +1122,69 @@ def _logged_catalog_ids(
     return found
 
 
+# One hinge per session: RDL, barbell deadlift, or trap-bar deadlift.
+# RDL is the legs preference. Back extension is only added while that
+# hinge is still under 2 sets.
+HINGE_LOW_BELOW = 2
+PRIMARY_HINGE_PREFERENCE = ("rdl", "trap-bar-deadlift", "barbell-deadlift")
+QUAD_COMPOUND_PREFERENCE = ("hack-squat", "leg-press")
+QUAD_ISOLATION_PREFERENCE = ("leg-extension",)
+HAMSTRING_CURL_PREFERENCE = ("seated-leg-curls", "lying-leg-curls")
+CALF_PREFERENCE = ("calf-raises", "db-calf-raises")
+ADDUCTOR_PREFERENCE = ("machine-adduction", "cable-hip-adduction")
+ABDUCTOR_PREFERENCE = ("machine-abduction", "cable-hip-abduction")
+ABS_PREFERENCE = ("ab-crunch-machine", "cable-crunch", "roman-chair-raise")
+BACK_EXTENSION_PREFERENCE = ("back-extension", "back-extension-45")
+# Two letters, once each per Mon–Sun week. Legs plus push.
+ABS_LETTERS = ("legs", "push")
+ABS_SETS = 2
+HIP_SETS = 1
+
+
+def primary_hinge_key(ex: Optional[dict]) -> Optional[str]:
+    """RDL, barbell deadlift, or trap-bar deadlift. Other hinges are None."""
+    if not isinstance(ex, dict):
+        return None
+    eid = str(ex.get("id") or "").strip()
+    if eid in PRIMARY_HINGE_PREFERENCE:
+        return eid
+    name = _norm_name(str(ex.get("name") or ""))
+    if not name:
+        return None
+    if name in ("rdl", "rdls") or "romanian" in name:
+        return "rdl"
+    if "deadlift" not in name:
+        return None
+    if "trap" in name:
+        return "trap-bar-deadlift"
+    if "stiff" in name:
+        return "rdl"
+    return "barbell-deadlift"
+
+
+def _is_back_extension_row(ex: Optional[dict]) -> bool:
+    if not isinstance(ex, dict):
+        return False
+    if str(ex.get("id") or "") in BACK_EXTENSION_PREFERENCE:
+        return True
+    name = _norm_name(str(ex.get("name") or ""))
+    return "back extension" in name or name == "hyperextension"
+
+
+def _is_abs_row(ex: Optional[dict]) -> bool:
+    if not isinstance(ex, dict):
+        return False
+    if str(ex.get("id") or "") in ABS_PREFERENCE:
+        return True
+    prim = [normalize_muscle(m) for m in (ex.get("primary_muscles") or [])]
+    return bool(prim) and all(m == "abs" for m in prim)
+
+
 def _family_slot_taken(ex: dict, chosen: Sequence[dict]) -> bool:
+    if primary_hinge_key(ex) and any(primary_hinge_key(c) for c in chosen):
+        return True
+    if _is_back_extension_row(ex) and any(_is_back_extension_row(c) for c in chosen):
+        return True
     fam = pattern_family(ex)
     if not fam:
         return False
@@ -1124,6 +1202,8 @@ GUARD_PASSTHROUGH_KEYS = (
     "legacy_id",
     "copied_from",
     "injected_by_guard",
+    "starting_load",
+    "rep_band_locked",
 )
 
 
@@ -1756,8 +1836,21 @@ def scale_muscle_targets_for_continuity(
 
 
 def progression_band(catalog_ex: Optional[dict]) -> Tuple[int, int]:
-    """Compound 5–9, isolation 8–15. Missing movement is a compound."""
-    movement = str((catalog_ex or {}).get("movement") or "compound").strip().lower()
+    """Compound 5–9, isolation 8–15. Missing movement is a compound.
+
+    A row with ``rep_band_locked`` keeps its own catalog band (the new
+    selectorized machines are 10–15). Every other row stays on the class band.
+    """
+    raw = catalog_ex or {}
+    if raw.get("rep_band_locked"):
+        rr = raw.get("rep_range") or []
+        try:
+            lo, hi = int(rr[0]), int(rr[1])
+        except (TypeError, ValueError, IndexError):
+            lo, hi = 0, 0
+        if hi > lo > 0:
+            return lo, hi
+    movement = str(raw.get("movement") or "compound").strip().lower()
     if movement == "isolation":
         return ISOLATION_REP_BAND
     return COMPOUND_REP_BAND
@@ -2630,6 +2723,498 @@ def _stamp_plan_remainder(plan: dict, remainder: Optional[dict], objective: Any)
     return plan
 
 
+def _row_sets(row: dict) -> int:
+    try:
+        return int((row.get("prescription") or {}).get("sets") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _resize_plan_row(row: dict, sets: int, sec_frac: float) -> None:
+    sets = max(0, int(sets))
+    rx = dict(row.get("prescription") or {})
+    rx["sets"] = sets
+    row["prescription"] = rx
+    credits = credit_sets_for_exercise(
+        row.get("primary_muscles") or [],
+        row.get("secondary_muscles") or [],
+        sets,
+        secondary_fraction=sec_frac,
+    )
+    row["set_credits"] = {k: round(v, 2) for k, v in credits.items()}
+
+
+def _sum_row_sets(rows: Sequence[dict]) -> int:
+    return sum(_row_sets(row) for row in rows)
+
+
+def _abs_week_hits(
+    sessions: Sequence[Any],
+    index: Dict[str, dict],
+    day: str,
+) -> Tuple[Set[str], Set[str]]:
+    """Dates and letters, before ``day``, that already logged an abs lift this week."""
+    from .priority_ramp import week_monday
+
+    monday = week_monday(day)
+    if monday is None:
+        return set(), set()
+    start = monday.isoformat()
+    today = str(day)[:10]
+    by_name = {
+        _norm_name(ex.get("name") or ""): ex
+        for ex in index.values()
+        if ex.get("name")
+    }
+    dates: Set[str] = set()
+    letters: Set[str] = set()
+    for session in sessions or []:
+        sd = session_date_of(session)[:10]
+        if not sd or sd < start or sd >= today:
+            continue
+        hit = False
+        for name in _session_exercise_names(session):
+            key = _norm_name(name)
+            cid = NAME_ALIASES.get(key) or _slug(name)
+            ex = index.get(cid) or by_name.get(key)
+            if ex and _is_abs_row(ex):
+                hit = True
+                break
+        if not hit:
+            continue
+        dates.add(sd)
+        letters.add(session_type_of(session))
+    return dates, letters
+
+
+def abs_session_due(
+    st: str,
+    sessions: Sequence[Any],
+    catalog: Optional[dict],
+    day: str,
+    *,
+    today_logged_ids: Optional[Sequence[str]] = None,
+    today_logged_names: Optional[Sequence[str]] = None,
+) -> bool:
+    """Abs is on legs and push, once each, and only twice per Mon–Sun week."""
+    if str(st or "") not in ABS_LETTERS:
+        return False
+    index = {
+        ex["id"]: ex
+        for ex in catalog_exercises(catalog or {}, available_only=False)
+    }
+    logged_ids = {str(eid) for eid in (today_logged_ids or []) if str(eid)}
+    logged_names = {_norm_name(name) for name in (today_logged_names or []) if name}
+    for eid, ex in index.items():
+        if not _is_abs_row(ex):
+            continue
+        if eid in logged_ids or _norm_name(ex.get("name") or "") in logged_names:
+            return False
+    dates, letters = _abs_week_hits(sessions, index, day)
+    if len(dates) >= 2 or st in letters:
+        return False
+    return True
+
+
+def _coverage_plan_row(
+    candidate: dict,
+    sets: int,
+    *,
+    sessions: Sequence[Any],
+    by_id: Dict[str, dict],
+    sec_frac: float,
+    note: str,
+    recovery_score: Optional[float],
+    continuity: dict,
+    recovery_rhr_under: bool,
+    equipment: Optional[dict],
+    deload: bool,
+    weighins: Optional[Sequence[Any]],
+    day: str,
+) -> dict:
+    """One plan row at ``sets``. No history keeps weight empty."""
+    last = last_performance(sessions, candidate.get("name") or "", by_id)
+    ex_rx = dict(candidate)
+    ex_rx["default_sets"] = int(sets)
+    rx = prescribe(
+        ex_rx,
+        last,
+        recovery_score=recovery_score,
+        continuity=continuity,
+        default_hard_sets=int(sets),
+        rhr_under_recovered=bool(recovery_rhr_under),
+        equipment=equipment,
+        deload=bool(deload),
+        weighins=weighins,
+        as_of=day,
+    )
+    credits = credit_sets_for_exercise(
+        candidate.get("primary_muscles") or [],
+        candidate.get("secondary_muscles") or [],
+        int(sets),
+        secondary_fraction=sec_frac,
+    )
+    prescription = {
+        "weight_lbs": rx.get("weight_lbs"),
+        "load": rx.get("load"),
+        "sets": int(sets),
+        "reps": rx.get("reps"),
+        "rep_range": rx.get("rep_range"),
+        "rep_range_label": rx.get("rep_range_label"),
+        "target_reps": rx.get("target_reps"),
+        "progression_reason": rx.get("progression_reason"),
+    }
+    rationale = str(rx.get("rationale") or "")
+    if note:
+        rationale = f"{rationale} {note}".strip()
+    row = {
+        "id": candidate.get("id"),
+        "name": candidate.get("name"),
+        "priority": candidate.get("priority") or 0,
+        "primary_muscles": list(candidate.get("primary_muscles") or []),
+        "secondary_muscles": list(candidate.get("secondary_muscles") or []),
+        "movement": candidate.get("movement"),
+        "movement_pattern": candidate.get("movement_pattern") or "",
+        "equipment": list(candidate.get("equipment") or []),
+        "load": rx.get("load"),
+        "rep_range": rx.get("rep_range_label"),
+        "target_reps": rx.get("target_reps"),
+        "progression_reason": rx.get("progression_reason"),
+        "prescription": prescription,
+        "set_credits": {k: round(v, 2) for k, v in credits.items()},
+        "rationale": rationale,
+        "last": rx.get("last"),
+    }
+    _copy_assisted_keys(rx, row, prescription)
+    return row
+
+
+def _pick_preferred(
+    pool_by_id: Dict[str, dict],
+    pool: Sequence[dict],
+    ids: Sequence[str],
+    pred,
+    taken: Set[str],
+    logged,
+) -> Optional[dict]:
+    for eid in ids:
+        row = pool_by_id.get(eid)
+        if row is None or str(row.get("id") or "") in taken or logged(row):
+            continue
+        return row
+    if pred is None:
+        return None
+    hits = [
+        row for row in pool
+        if str(row.get("id") or "") not in taken and not logged(row) and pred(row)
+    ]
+    if not hits:
+        return None
+    hits.sort(key=lambda row: (-int(row.get("priority") or 0), str(row.get("name") or "")))
+    return hits[0]
+
+
+def _preferred_keep(rows: List[dict], pred, ids: Sequence[str]) -> List[dict]:
+    matched = [row for row in rows if pred(row)]
+    if len(matched) <= 1:
+        return rows
+    keep = None
+    for eid in ids:
+        for row in matched:
+            if str(row.get("id") or "") == eid:
+                keep = row
+                break
+        if keep is not None:
+            break
+    if keep is None:
+        keep = matched[0]
+    drop = {id(row) for row in matched if row is not keep}
+    return [row for row in rows if id(row) not in drop]
+
+
+def shape_session_coverage(
+    plan_ex: Sequence[dict],
+    *,
+    st: str,
+    pool: Sequence[dict],
+    pool_by_id: Dict[str, dict],
+    pin_ids: Sequence[str],
+    session_cap: int,
+    default_hard: int,
+    sessions: Sequence[Any],
+    by_id: Dict[str, dict],
+    catalog: Optional[dict],
+    day: str,
+    sec_frac: float,
+    already_logged,
+    recovery_score: Optional[float],
+    continuity: dict,
+    recovery_rhr_under: bool,
+    equipment: Optional[dict],
+    deload: bool,
+    weighins: Optional[Sequence[Any]],
+    today_logged_ids: Sequence[str],
+    today_logged_names: Sequence[str],
+    drop_extras: bool = True,
+) -> List[dict]:
+    """Legs template and the twice-weekly abs slot, inside the set cap.
+
+    Compounds stay. One hinge (RDL when it is available). Adductor and
+    abductor are 1 set when the cap has room. Abs is 2 sets on legs and
+    push, once each per week. Back extension is only there while the hinge
+    is under 2 sets. A logged set count is left alone; a never-logged
+    template slot is raised up to its count when the cap allows.
+    """
+    rows: List[dict] = []
+    for src in plan_ex or []:
+        row = dict(src)
+        if isinstance(row.get("prescription"), dict):
+            row["prescription"] = dict(row["prescription"])
+        rows.append(row)
+    pins = [str(p) for p in pin_ids if str(p)]
+    pin_set = set(pins)
+    main_sets = max(1, int(default_hard or 2))
+
+    def logged(row: dict) -> bool:
+        return bool(already_logged(row))
+
+    def room() -> int:
+        return int(session_cap) - _sum_row_sets(rows)
+
+    def at_least(row: dict, sets: int) -> None:
+        if row.get("last"):
+            return
+        current = _row_sets(row)
+        if current < sets and sets - current <= room():
+            _resize_plan_row(row, sets, sec_frac)
+
+    def exact(row: dict, sets: int) -> None:
+        if row.get("last"):
+            return
+        current = _row_sets(row)
+        if current == sets:
+            return
+        if current < sets and sets - current <= room():
+            _resize_plan_row(row, sets, sec_frac)
+        elif current > sets:
+            _resize_plan_row(row, sets, sec_frac)
+
+    def add(pred, ids, sets: int, note: str) -> None:
+        if any(pred(row) for row in rows):
+            return
+        use = sets if sets <= room() else room()
+        if use < 1:
+            return
+        taken = {str(row.get("id") or "") for row in rows}
+        cand = _pick_preferred(pool_by_id, pool, ids, pred, taken, logged)
+        if cand is None:
+            return
+        rows.append(_coverage_plan_row(
+            cand,
+            use,
+            sessions=sessions,
+            by_id=by_id,
+            sec_frac=sec_frac,
+            note=note,
+            recovery_score=recovery_score,
+            continuity=continuity,
+            recovery_rhr_under=recovery_rhr_under,
+            equipment=equipment,
+            deload=deload,
+            weighins=weighins,
+            day=day,
+        ))
+
+    hinges = [row for row in rows if primary_hinge_key(row)]
+    if len(hinges) > 1:
+        rows = _preferred_keep(rows, primary_hinge_key, PRIMARY_HINGE_PREFERENCE)
+    if sum(1 for row in rows if _is_back_extension_row(row)) > 1:
+        rows = _preferred_keep(rows, _is_back_extension_row, BACK_EXTENSION_PREFERENCE)
+
+    abs_due = abs_session_due(
+        st,
+        sessions,
+        catalog,
+        day,
+        today_logged_ids=today_logged_ids,
+        today_logged_names=today_logged_names,
+    )
+
+    if st != "legs":
+        if abs_due:
+            existing = next((row for row in rows if _is_abs_row(row)), None)
+            if existing is not None:
+                exact(existing, ABS_SETS)
+            else:
+                add(_is_abs_row, ABS_PREFERENCE, ABS_SETS, "Abs: 2 hard sets.")
+        return rows
+
+    def is_quad_compound(row: dict) -> bool:
+        eid = str(row.get("id") or "")
+        if eid in QUAD_COMPOUND_PREFERENCE:
+            return True
+        return (
+            pattern_family(row) == KNEE_DOMINANT_FAMILY
+            and str(row.get("movement") or "") == "compound"
+        )
+
+    def is_curl(row: dict) -> bool:
+        eid = str(row.get("id") or "")
+        return eid in HAMSTRING_CURL_PREFERENCE or pattern_family(row) == HAMSTRING_CURL_FAMILY
+
+    def is_calf(row: dict) -> bool:
+        eid = str(row.get("id") or "")
+        return eid in CALF_PREFERENCE or pattern_family(row) == CALF_FAMILY
+
+    def is_quad_iso(row: dict) -> bool:
+        return str(row.get("id") or "") in QUAD_ISOLATION_PREFERENCE
+
+    def is_add(row: dict) -> bool:
+        return (
+            str(row.get("movement_pattern") or "") == "hip_adduction"
+            or str(row.get("id") or "") in ADDUCTOR_PREFERENCE
+        )
+
+    def is_abd(row: dict) -> bool:
+        return (
+            str(row.get("movement_pattern") or "") == "hip_abduction"
+            or str(row.get("id") or "") in ABDUCTOR_PREFERENCE
+        )
+
+    def keep_row(row: dict) -> bool:
+        eid = str(row.get("id") or "")
+        if eid in pin_set:
+            return True
+        return bool(
+            is_quad_compound(row)
+            or primary_hinge_key(row)
+            or is_quad_iso(row)
+            or is_curl(row)
+            or is_calf(row)
+            or is_add(row)
+            or is_abd(row)
+            or _is_abs_row(row)
+            or _is_back_extension_row(row)
+        )
+
+    if drop_extras:
+        rows = [row for row in rows if keep_row(row)]
+    rows = _preferred_keep(rows, is_quad_compound, QUAD_COMPOUND_PREFERENCE)
+    rows = _preferred_keep(rows, primary_hinge_key, PRIMARY_HINGE_PREFERENCE)
+    rows = _preferred_keep(rows, is_curl, HAMSTRING_CURL_PREFERENCE)
+    rows = _preferred_keep(rows, is_calf, CALF_PREFERENCE)
+    rows = _preferred_keep(rows, is_add, ADDUCTOR_PREFERENCE)
+    rows = _preferred_keep(rows, is_abd, ABDUCTOR_PREFERENCE)
+    rows = _preferred_keep(rows, _is_abs_row, ABS_PREFERENCE)
+
+    for pred, sets in (
+        (is_quad_compound, main_sets),
+        (primary_hinge_key, main_sets),
+        (is_quad_iso, main_sets),
+        (is_curl, main_sets),
+        (is_calf, main_sets),
+    ):
+        found = next((row for row in rows if pred(row)), None)
+        if found is not None:
+            at_least(found, sets)
+
+    add(
+        is_quad_compound,
+        QUAD_COMPOUND_PREFERENCE,
+        main_sets,
+        "",
+    )
+    add(primary_hinge_key, PRIMARY_HINGE_PREFERENCE, main_sets, "")
+    add(is_quad_iso, QUAD_ISOLATION_PREFERENCE, main_sets, "Quad isolation.")
+    add(is_curl, HAMSTRING_CURL_PREFERENCE, main_sets, "")
+    add(is_calf, CALF_PREFERENCE, main_sets, "")
+    # The adds above don't raise a row that was created inside add(); they
+    # skip when one already exists. Raise any just-added unlogged row too.
+    for pred, sets in (
+        (is_quad_compound, main_sets),
+        (primary_hinge_key, main_sets),
+        (is_quad_iso, main_sets),
+        (is_curl, main_sets),
+        (is_calf, main_sets),
+    ):
+        found = next((row for row in rows if pred(row)), None)
+        if found is not None:
+            at_least(found, sets)
+
+    hinge_sets = sum(_row_sets(row) for row in rows if primary_hinge_key(row))
+    if hinge_sets >= HINGE_LOW_BELOW:
+        rows = [
+            row for row in rows
+            if not _is_back_extension_row(row) or str(row.get("id") or "") in pin_set
+        ]
+    add(is_add, ADDUCTOR_PREFERENCE, HIP_SETS, "Coverage: 1 hard set for adductors.")
+    add(is_abd, ABDUCTOR_PREFERENCE, HIP_SETS, "Coverage: 1 hard set for abductors.")
+    for pred in (is_add, is_abd):
+        found = next((row for row in rows if pred(row)), None)
+        if found is not None:
+            exact(found, HIP_SETS)
+    if abs_due:
+        found = next((row for row in rows if _is_abs_row(row)), None)
+        if found is not None:
+            exact(found, ABS_SETS)
+        else:
+            add(_is_abs_row, ABS_PREFERENCE, ABS_SETS, "Abs: 2 hard sets.")
+    else:
+        rows = [
+            row for row in rows
+            if not _is_abs_row(row) or str(row.get("id") or "") in pin_set
+        ]
+    hinge_sets = sum(_row_sets(row) for row in rows if primary_hinge_key(row))
+    if hinge_sets < HINGE_LOW_BELOW and not any(
+        _is_back_extension_row(row) for row in rows
+    ):
+        add(
+            _is_back_extension_row,
+            BACK_EXTENSION_PREFERENCE,
+            1,
+            "Back extension while the hinge stays under 2 sets.",
+        )
+
+    def sort_key(row: dict) -> tuple:
+        eid = str(row.get("id") or "")
+        if eid in pin_set:
+            return (0, pins.index(eid) if eid in pins else 0, eid)
+        if is_quad_compound(row):
+            return (1, 0, eid)
+        if primary_hinge_key(row):
+            return (1, 1, eid)
+        if str(row.get("movement") or "") == "compound":
+            return (1, 2, eid)
+        if is_quad_iso(row):
+            return (2, 0, eid)
+        if is_curl(row):
+            return (2, 1, eid)
+        if is_add(row):
+            return (2, 2, eid)
+        if is_abd(row):
+            return (2, 3, eid)
+        if is_calf(row):
+            return (2, 4, eid)
+        if _is_abs_row(row):
+            return (2, 5, eid)
+        if _is_back_extension_row(row):
+            return (2, 6, eid)
+        return (3, 0, eid)
+
+    rows.sort(key=sort_key)
+    return rows
+
+
+def _credit_rows(rows: Sequence[dict]) -> Tuple[Dict[str, float], int]:
+    planned: Dict[str, float] = {}
+    total = 0
+    for row in rows:
+        total += _row_sets(row)
+        for muscle, credit in (row.get("set_credits") or {}).items():
+            planned[muscle] = planned.get(muscle, 0.0) + float(credit)
+    return planned, total
+
+
 def generate_workout_plan(catalog: dict, goals: dict, sessions: Sequence[Session], **kwargs: Any) -> dict:
     """Guarded planner: catalog guard in, every row resolved and weighted out.
 
@@ -3195,6 +3780,27 @@ def _generate_workout_plan_unguarded(
     ]
     for p in pin_ids:
         chosen.append(pool_by_id[p])
+
+    def _seed_preferred(ids: Sequence[str]) -> None:
+        for eid in ids:
+            row = pool_by_id.get(eid)
+            if row is None or _already_logged_today(row):
+                continue
+            if any(str(c.get("id")) == eid for c in chosen):
+                continue
+            if _family_slot_taken(row, chosen):
+                continue
+            chosen.append(row)
+            return
+
+    # Legs template seeds. RDL wins the hinge. Hack squat wins the quad
+    # compound when it is actually available; otherwise leg press.
+    if st == "legs":
+        _seed_preferred(QUAD_COMPOUND_PREFERENCE)
+        _seed_preferred(PRIMARY_HINGE_PREFERENCE)
+        _seed_preferred(QUAD_ISOLATION_PREFERENCE)
+        _seed_preferred(HAMSTRING_CURL_PREFERENCE)
+        # Calves stay with the scored fill so a logged DB raise can rotate in.
     # Seed with top compound if compounds preferred
     if n and goals.get("prefer_compounds_first", True):
         for e in pool_scored:
@@ -3203,18 +3809,6 @@ def _generate_workout_plan_unguarded(
             if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
                 chosen.append(e)
                 break
-    # Leg Press is a main legs compound. It has to be chosen here, not only
-    # by the later ramp add (that add stops once a set is logged).
-    if st == "legs" and n:
-        press = pool_by_id.get("leg-press")
-        if (
-            press
-            and press.get("id") not in {c.get("id") for c in chosen}
-            and not _already_logged_today(press)
-            and not _family_slot_taken(press, chosen)
-            and len(chosen) < n
-        ):
-            chosen.append(press)
     for e in pool_scored:
         if len(chosen) >= n:
             break
@@ -3229,6 +3823,17 @@ def _generate_workout_plan_unguarded(
         # pass. The main fill keeps the hamstring and calf slots.
         if pattern in ("hip_adduction", "hip_abduction"):
             continue
+        if _is_back_extension_row(e):
+            # Legs adds this only after the hinge count is known. Other
+            # days keep the machine when both back-extension rows exist.
+            if st == "legs":
+                continue
+            preferred_back = next(
+                (eid for eid in BACK_EXTENSION_PREFERENCE if eid in pool_by_id),
+                None,
+            )
+            if preferred_back and str(e.get("id")) != preferred_back:
+                continue
         if str(e.get("movement") or "") == "isolation":
             abs_prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
             if abs_prim and all(m == "abs" for m in abs_prim):
@@ -3255,6 +3860,10 @@ def _generate_workout_plan_unguarded(
 
     def _is_main(e: dict) -> bool:
         if str(e.get("id")) in pin_ids:
+            return True
+        # RDL has no pattern family, so the accessory check would trim it.
+        # The preferred hinge stays a main lift.
+        if primary_hinge_key(e):
             return True
         if is_plan_accessory is not None:
             return not is_plan_accessory(e, goals)
@@ -3409,6 +4018,38 @@ def _generate_workout_plan_unguarded(
         _copy_assisted_keys(rx, plan_row, prescription)
         plan_ex.append(plan_row)
 
+    def _apply_coverage(rows: List[dict]) -> None:
+        nonlocal plan_ex, planned_credits, session_sets
+        if use_remainder:
+            return
+        plan_ex = shape_session_coverage(
+            rows,
+            st=st,
+            pool=pool,
+            pool_by_id=pool_by_id,
+            pin_ids=pin_ids,
+            session_cap=session_cap,
+            default_hard=default_hard,
+            sessions=sessions,
+            by_id=by_id,
+            catalog=catalog,
+            day=day,
+            sec_frac=sec_frac,
+            already_logged=_already_logged_today,
+            recovery_score=recovery_score,
+            continuity=continuity,
+            recovery_rhr_under=bool(recovery_rhr_under),
+            equipment=equipment if equipment_on else None,
+            deload=bool(deload),
+            weighins=weighins,
+            today_logged_ids=list(today_logged_ids),
+            today_logged_names=list(today_logged_names),
+            drop_extras=True,
+        )
+        planned_credits, session_sets = _credit_rows(plan_ex)
+
+    _apply_coverage(plan_ex)
+
     held_compounds: List[str] = []
     if use_remainder:
         plan_ex = _remainder_plan_rows(remainder["lifts"], pool)
@@ -3429,6 +4070,10 @@ def _generate_workout_plan_unguarded(
                 if str(candidate.get("id")) in taken:
                     continue
                 if candidate.get("movement") != "compound":
+                    continue
+                if primary_hinge_key(candidate) and any(
+                    primary_hinge_key(row) for row in current_rows
+                ):
                     continue
                 fam = pattern_family(candidate)
                 if fam and families.get(fam, 0) >= PATTERN_FAMILY_SESSION_CAP:
@@ -3620,6 +4265,15 @@ def _generate_workout_plan_unguarded(
         for group in ZERO_COVERAGE_GROUPS:
             if group not in session_ok:
                 continue
+            if group == "abs" and not abs_session_due(
+                st,
+                sessions,
+                catalog,
+                day,
+                today_logged_ids=list(today_logged_ids),
+                today_logged_names=list(today_logged_names),
+            ):
+                continue
             target = _band_min(group)
             if target <= 0 or _have(group) + 1e-9 >= target:
                 continue
@@ -3629,6 +4283,18 @@ def _generate_workout_plan_unguarded(
             if candidate is None:
                 continue
             pattern = str(candidate.get("movement_pattern") or "").strip().lower()
+            if (
+                st == "legs"
+                and _is_back_extension_row(candidate)
+                and str(candidate.get("id") or "") not in set(pin_ids)
+            ):
+                hinge_sets = sum(
+                    _row_sets(row)
+                    for row in list(plan_ex) + added_rows
+                    if primary_hinge_key(row)
+                )
+                if hinge_sets >= HINGE_LOW_BELOW:
+                    continue
             if pattern in ("hip_adduction", "hip_abduction") and any(
                 str(row.get("movement_pattern") or "").strip().lower() == pattern
                 for row in list(plan_ex) + added_rows
@@ -3728,6 +4394,37 @@ def _generate_workout_plan_unguarded(
             for offset, row in enumerate(compounds_new):
                 plan_ex.insert(insert_at + offset, row)
             plan_ex.extend(isolations_new)
+
+    # Ramp bumps can raise the hinge to 2 sets. Drop back extension in that
+    # case, and put any coverage rows back into the legs order. A compound
+    # the ramp added stays; only a second hinge is removed.
+    _apply_coverage_finalize = shape_session_coverage
+    if not use_remainder:
+        plan_ex = _apply_coverage_finalize(
+            plan_ex,
+            st=st,
+            pool=pool,
+            pool_by_id=pool_by_id,
+            pin_ids=pin_ids,
+            session_cap=session_cap,
+            default_hard=default_hard,
+            sessions=sessions,
+            by_id=by_id,
+            catalog=catalog,
+            day=day,
+            sec_frac=sec_frac,
+            already_logged=_already_logged_today,
+            recovery_score=recovery_score,
+            continuity=continuity,
+            recovery_rhr_under=bool(recovery_rhr_under),
+            equipment=equipment if equipment_on else None,
+            deload=bool(deload),
+            weighins=weighins,
+            today_logged_ids=list(today_logged_ids),
+            today_logged_names=list(today_logged_names),
+            drop_extras=False,
+        )
+        planned_credits, session_sets = _credit_rows(plan_ex)
 
     # Report volume against long-term bands, but annotate ramped planning bands
     balance = _stamp_ramp(

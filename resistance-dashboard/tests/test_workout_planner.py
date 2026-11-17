@@ -1082,7 +1082,10 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertEqual(len(curls), 1, legs_ids)
         self.assertEqual(len(calves), 1, legs_ids)
         self.assertIn("rdl", legs_ids, legs_ids)
-        self.assertIn("back-extension", legs_ids, legs_ids)
+        # RDL is 2 sets, so the back-extension slot stays empty.
+        self.assertNotIn("back-extension", legs_ids, legs_ids)
+        hinges = [i for i in legs_ids if i in ("rdl", "barbell-deadlift", "trap-bar-deadlift")]
+        self.assertEqual(hinges, ["rdl"], legs_ids)
 
 
 def _pull_family_catalog():
