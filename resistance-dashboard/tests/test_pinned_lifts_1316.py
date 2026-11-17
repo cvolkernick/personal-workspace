@@ -85,8 +85,9 @@ class LibraryReplay1021Tests(unittest.TestCase):
             session_type="pull", as_of=DAY,
         )
         rows = _rows(plan)
-        # Assisted Pullups opens, SOP load/reps off the last log (70 x6 -> hold 70, aim 7).
-        self.assertEqual(rows[0], ("Assisted Pullups", 2, 70.0, 7))
+        # Assisted Pullups opens. It is the main compound, so it is 4 sets.
+        # SOP load/reps still come off the last log (70 x6 -> hold 70, aim 7).
+        self.assertEqual(rows[0], ("Assisted Pullups", 4, 70.0, 7))
         for row, ex in zip(rows, plan["exercises"]):
             if not is_plan_accessory(ex, GOALS):
                 self.assertGreaterEqual(row[1], MAIN_LIFT_MIN_SETS, row)

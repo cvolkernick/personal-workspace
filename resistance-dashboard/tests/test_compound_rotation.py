@@ -352,6 +352,98 @@ class CompoundRotation(unittest.TestCase):
             self.assertFalse(prim and all(m == "traps" for m in prim), row["name"])
             self.assertNotIn("shrug", row["name"].lower())
 
+    def _main_compound_id(self, rows):
+        compounds = [
+            row for row in rows
+            if row.get("movement") == "compound" and not primary_hinge_key(row)
+        ]
+        if not compounds:
+            return None
+        compounds.sort(key=lambda row: (-int(row.get("priority") or 0), rows.index(row)))
+        return compounds[0]["id"]
+
+    def test_push_and_pull_opener_sets_and_five_exercises(self):
+        """The first compound is at least 3, and 4 when it is the main and the cap allows."""
+        history = [
+            Session(
+                date="2026-11-17",
+                session_type="legs",
+                exercises=[
+                    ExerciseEntry(name="Hack Squat", sets=[SetEntry(weight_lbs=180, sets=3, reps=8)]),
+                    ExerciseEntry(name="RDL", sets=[SetEntry(weight_lbs=185, sets=3, reps=6)]),
+                    ExerciseEntry(name="Seated Leg Curls", sets=[SetEntry(weight_lbs=90, sets=2, reps=10)]),
+                    ExerciseEntry(name="Calf Extensions", sets=[SetEntry(weight_lbs=80, sets=2, reps=12)]),
+                ],
+            )
+        ]
+        prior = []
+        letters = (
+            ("2026-11-18", "push"),
+            ("2026-11-19", "pull"),
+            ("2026-11-21", "push"),
+            ("2026-11-22", "pull"),
+            ("2026-11-25", "pull"),
+        )
+        for day, letter in letters:
+            plan = generate_workout_plan(
+                self.catalog, dict(RAMP), history,
+                recovery_score=80, session_type=letter, as_of=day, prior_plans=list(prior),
+            )
+            rows = plan["exercises"]
+            self.assertGreaterEqual(len(rows), 5, [row["name"] for row in rows])
+            total = sum(_sets(row) for row in rows)
+            self.assertGreaterEqual(total, 10)
+            self.assertLessEqual(total, 14)
+            compounds = [
+                row for row in rows
+                if row.get("movement") == "compound" and not primary_hinge_key(row)
+            ]
+            self.assertTrue(compounds, [row["name"] for row in rows])
+            opener = compounds[0]
+            self.assertGreaterEqual(_sets(opener), 3, opener["name"])
+            self.assertLessEqual(_sets(opener), 4, opener["name"])
+            main_id = self._main_compound_id(rows)
+            for row in rows:
+                sets = _sets(row)
+                self.assertGreaterEqual(sets, 2, row["name"])
+                self.assertLessEqual(sets, 4, row["name"])
+                if sets == 4:
+                    self.assertEqual(row["id"], main_id, row["name"])
+            if opener["id"] == main_id and total <= 12:
+                self.assertEqual(_sets(opener), 4, opener["name"])
+            prior.append({"date": day, "session_type": letter, "exercises": rows})
+            history.append(_as_session(day, letter, plan))
+
+    def test_identical_stub_also_opens_compounds_and_lists_five(self):
+        from rt_dashboard.workout_planner import postshape_ai_workout
+
+        for letter in ("push", "pull"):
+            out = postshape_ai_workout(
+                {
+                    "source": "grok",
+                    "session_type": letter,
+                    "is_rest_day": False,
+                    "exercises": STUB[letter],
+                },
+                self.catalog,
+                [],
+                goals=dict(RAMP),
+                as_of="2026-11-18",
+            )
+            rows = out["exercises"]
+            self.assertGreaterEqual(len(rows), 5, [row["name"] for row in rows])
+            compounds = [
+                row for row in rows
+                if row.get("movement") == "compound" and not primary_hinge_key(row)
+            ]
+            self.assertGreaterEqual(_sets(compounds[0]), 3)
+            main_id = self._main_compound_id(rows)
+            if compounds[0]["id"] == main_id:
+                self.assertEqual(_sets(compounds[0]), 4)
+            for row in rows:
+                if _sets(row) == 4:
+                    self.assertEqual(row["id"], main_id)
+
 
 if __name__ == "__main__":
     unittest.main()

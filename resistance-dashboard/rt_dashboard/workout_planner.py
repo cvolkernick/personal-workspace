@@ -1144,6 +1144,9 @@ HIP_SETS = 1
 # A normal session stays at least this full. Deload and low recovery are exempt.
 # The 14-set cap still wins when it is lower than the floor.
 SESSION_SET_FLOOR = 10
+# Every push, pull, and legs day lists at least this many exercises when
+# the rotation pool can supply them.
+SESSION_EXERCISE_FLOOR = 5
 ACCESSORY_SET_CAP = 3
 MAIN_COMPOUND_SET_CAP = 4
 BTN_PRESS_ID = "smith-btn-press"
@@ -4385,6 +4388,141 @@ def shape_session_coverage(
         if _is_abs_row(row):
             return (5, 0)
         return (4, 0)
+
+    def _is_working_compound(row: dict) -> bool:
+        if str(row.get("movement") or "") != "compound":
+            return False
+        if primary_hinge_key(row) or _is_back_extension_row(row):
+            return False
+        return True
+
+    def _plain_accessory(row: dict) -> bool:
+        if str(row.get("id") or "") in pin_set or _is_abs_row(row):
+            return False
+        if str(row.get("movement") or "") == "compound" or primary_hinge_key(row):
+            return False
+        return _row_sets(row) > 0
+
+    def _fund_from_accessories(need: int) -> bool:
+        """Free ``need`` sets from accessories. Compounds stay at their counts."""
+        while room() < need:
+            shrinkable = [row for row in rows if _plain_accessory(row) and _row_sets(row) > 2]
+            if shrinkable:
+                shrinkable.sort(key=lambda row: (-_row_sets(row), int(row.get("priority") or 0)))
+                victim = shrinkable[0]
+                _resize_plan_row(victim, _row_sets(victim) - 1, sec_frac)
+                continue
+            droppable = [row for row in rows if _plain_accessory(row)]
+            if droppable and len(rows) - 1 >= SESSION_EXERCISE_FLOOR:
+                droppable.sort(key=lambda row: (int(row.get("priority") or 0), -_row_sets(row)))
+                rows.remove(droppable[0])
+                continue
+            break
+        return room() >= need
+
+    def _ensure_opener_sets() -> None:
+        """Push and pull: the first compound is at least 3, and 4 when it is the main."""
+        if st not in ("push", "pull"):
+            return
+        ordered = sorted(rows, key=_rank)
+        compounds = [row for row in ordered if _is_working_compound(row)]
+        if not compounds:
+            return
+        first = compounds[0]
+        main_id = _main_compound_id()
+        is_main = str(first.get("id") or "") == (main_id or "")
+        have = _row_sets(first)
+        goal = MAIN_COMPOUND_SET_CAP if is_main else 3
+        goal = min(goal, _row_set_cap(first, main_id))
+        if have >= goal:
+            return
+        for target in (goal, 3):
+            if target <= have:
+                return
+            if not _fund_from_accessories(target - have):
+                continue
+            _resize_plan_row(first, target, sec_frac)
+            note = str(first.get("rationale") or "")
+            if "Opener compound" not in note:
+                first["rationale"] = (note + " Opener compound at 3–4 sets.").strip()
+            return
+
+    def _can_add_exercise(ex: dict) -> bool:
+        eid = str(ex.get("id") or "")
+        if not eid or any(str(row.get("id") or "") == eid for row in rows):
+            return False
+        if eid in pin_set or logged(ex) or _is_abs_row(ex):
+            return False
+        if eid == BTN_PRESS_ID and not btn_logged_within(sessions, day, pool_by_id):
+            return False
+        if _blocked_on_push(st, ex):
+            return False
+        if _family_slot_taken(ex, rows):
+            return False
+        if primary_hinge_key(ex) and any(primary_hinge_key(row) for row in rows):
+            return False
+        return True
+
+    def _yield_sets(need: int, protect_ids: Set[str]) -> None:
+        """Free sets for another exercise. The opener compound is left alone."""
+        while room() < need:
+            best = None
+            best_key = None
+            for row in rows:
+                eid = str(row.get("id") or "")
+                if eid in protect_ids or eid in pin_set or _is_abs_row(row):
+                    continue
+                if _row_sets(row) <= 2:
+                    continue
+                accessory = _plain_accessory(row)
+                key = (0 if accessory else 1, -_row_sets(row), int(row.get("priority") or 0))
+                if best_key is None or key < best_key:
+                    best_key = key
+                    best = row
+            if best is None:
+                return
+            _resize_plan_row(best, _row_sets(best) - 1, sec_frac)
+
+    def _ensure_exercise_count() -> None:
+        """At least five exercises, filled from the rotation accessories."""
+        if st not in ("push", "pull", "legs"):
+            return
+        ordered = sorted(rows, key=_rank)
+        compounds = [row for row in ordered if _is_working_compound(row)]
+        protect: Set[str] = set()
+        if compounds:
+            protect.add(str(compounds[0].get("id") or ""))
+        for _ in range(SESSION_EXERCISE_FLOOR):
+            if len(rows) >= SESSION_EXERCISE_FLOOR:
+                return
+            options = [ex for ex in candidates if _can_add_exercise(ex)]
+            if not options:
+                return
+            options.sort(key=lambda ex: (seen.get(str(ex.get("id") or "")) or "", str(ex.get("id") or "")))
+            if room() < 2:
+                _yield_sets(2, protect)
+            if room() < 2:
+                return
+            rows.append(_coverage_plan_row(
+                options[0],
+                2,
+                sessions=sessions,
+                by_id=by_id,
+                sec_frac=sec_frac,
+                note="Filled out to five exercises.",
+                recovery_score=recovery_score,
+                continuity=continuity,
+                recovery_rhr_under=recovery_rhr_under,
+                equipment=equipment,
+                deload=deload,
+                weighins=weighins,
+                day=day,
+            ))
+
+    _ensure_opener_sets()
+    _ensure_exercise_count()
+    _clamp_row_sets()
+    _drop_under_two_always()
 
     rows.sort(key=_rank)
     hack_at = next(
