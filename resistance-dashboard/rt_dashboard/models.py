@@ -3,11 +3,30 @@
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 # Planner status copy. A closed day used to store this string as a lift (#1110).
 _STATUS_LOG_NAME_RE = re.compile(r"^Already trained today\b", re.IGNORECASE)
+
+
+def _plain_dict(obj: Any) -> Dict[str, Any]:
+    """Dataclass fields as a dict, without ``dataclasses.asdict``.
+
+    ``asdict`` deep-copies every value. A dashboard build calls ``to_dict``
+    thousands of times on flat samples (food logs, sets, days). Copying a
+    mapping or list one level is enough: nested values are scalars.
+    """
+    out: Dict[str, Any] = {}
+    for name in obj.__dataclass_fields__:
+        val = obj.__dict__[name]
+        if isinstance(val, dict):
+            out[name] = dict(val)
+        elif isinstance(val, list):
+            out[name] = list(val)
+        else:
+            out[name] = val
+    return out
 
 
 def _fmt_weight_lbs(w: float) -> str:
@@ -59,11 +78,15 @@ class SetEntry:
         return f"{_fmt_weight_lbs(self.weight_lbs)} lbs x {int(self.sets)} x {int(self.reps)}"
 
     def to_dict(self) -> Dict[str, Any]:
-        out = asdict(self)
-        if not out.get("warmup"):
-            out.pop("warmup", None)
-        if out.get("rir") is None:
-            out.pop("rir", None)
+        out: Dict[str, Any] = {
+            "weight_lbs": self.weight_lbs,
+            "sets": self.sets,
+            "reps": self.reps,
+        }
+        if self.warmup:
+            out["warmup"] = True
+        if self.rir is not None:
+            out["rir"] = self.rir
         source = getattr(self, "effective_load_source", None)
         if not source:
             return out
@@ -261,7 +284,7 @@ class WeightSample:
     source: str = "google_fit"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -279,7 +302,7 @@ class BodyFatSample:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -290,7 +313,7 @@ class SleepSample:
     source: str = "google_fit"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -310,7 +333,7 @@ class NutritionDay:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -333,7 +356,7 @@ class FoodLogEntry:
     log_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -343,7 +366,7 @@ class HydrationDay:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -355,7 +378,7 @@ class CaloriesBurnedDay:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -371,7 +394,7 @@ class RestingHeartRateDay:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -396,7 +419,7 @@ class ActiveZoneMinutesDay:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -411,7 +434,7 @@ class StepSample:
     source: str = "google_health"
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)
 
 
 @dataclass
@@ -455,4 +478,4 @@ class RecoveryStatus:
     inputs: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return _plain_dict(self)

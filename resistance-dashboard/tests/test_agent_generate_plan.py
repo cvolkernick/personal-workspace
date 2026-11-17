@@ -838,7 +838,11 @@ class PiTodayHttpAutoGenerate(unittest.TestCase):
         today_idx = text.find('parsed.path == "/api/agent/today"')
         self.assertGreater(today_idx, 0)
         chunk = text[today_idx : today_idx + 2400]
-        self.assertIn("_overlay_agent_workout", chunk)
+        # The handler delegates to load_agent_today_response, which still
+        # overlays via stamp_and_fill_workout (the cached path included).
+        self.assertIn("load_agent_today_response", chunk)
+        today_fn = text[text.find("def load_agent_today_response") :]
+        self.assertIn("_overlay_agent_workout", today_fn[:1800])
         helper = text[text.find("def _overlay_agent_workout") :]
         self.assertIn("stamp_and_fill_workout", helper[:2400])
         self.assertNotIn('data.get("workout")', chunk)

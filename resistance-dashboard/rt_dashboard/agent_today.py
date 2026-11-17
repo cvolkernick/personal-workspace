@@ -1211,7 +1211,21 @@ def export_agent_today(
     *,
     error: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Slice a dashboard payload into ``{ok, today, week, error?}``. Honest empties."""
+    """Slice a dashboard payload into ``{ok, today, week, error?}``. Honest empties.
+
+    Coaching-target reads (kcal, steps, hydration) share one settings fetch.
+    """
+    from .coaching_targets import coaching_settings_scope
+
+    with coaching_settings_scope():
+        return _export_agent_today_body(payload, error=error)
+
+
+def _export_agent_today_body(
+    payload: Optional[Dict[str, Any]] = None,
+    *,
+    error: Optional[str] = None,
+) -> Dict[str, Any]:
     data = payload if isinstance(payload, dict) else {}
     meta = _as_dict(data.get("meta"))
     coach = _as_dict(data.get("coach"))

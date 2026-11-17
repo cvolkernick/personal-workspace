@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextvars
+import gzip
 import json
 import logging
 import os
@@ -124,6 +126,7 @@ _bootstrap_env()
 from rt_dashboard.analytics import dashboard_payload  # noqa: E402
 from rt_dashboard.background_refresh import (  # noqa: E402
     maybe_schedule_background_refresh,
+    register_after_health_refresh,
     schedule_incremental_warm,
     start_warm_loop,
     warm_interval_sec,
@@ -188,9 +191,8 @@ from rt_dashboard.google_auth import (  # noqa: E402
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
 from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E402
 from rt_dashboard.hidrate_client import (  # noqa: E402
-    hidrate_bottle_charge,
+    hidrate_bundle_for_build,
     hidrate_credentials_present,
-    hidrate_hydration_samples,
     overlay_hidrate_hydration,
 )
 from rt_dashboard.models import HealthSnapshot, Session  # noqa: E402
@@ -512,22 +514,36 @@ def pull_merged_sessions(
     return sessions, source, error, meta_client
 
 
-# --- Built-payload memo (speed fix #2) -------------------------------------
-# /api/dashboard and /api/daily-tasks both fire at boot and used to build the
-# same payload twice. Serving mode keeps each user's last build for a short
-# TTL, collapses concurrent builds into one, and drops everything on any
-# write request or when health.json changes on disk. Disabled unless the
-# server is running (tests and scripts always build fresh).
+# --- Built-payload memo ----------------------------------------------------
+# Serving mode keeps each user's last build. A fresh hit is returned
+# immediately. When the TTL expires or health.json changes, requests still
+# return that body and one background rebuild runs (the warm loop starts the
+# same rebuild after it refreshes health). A request blocks only when there
+# is no body yet, or a write has invalidated it (read-your-writes).
+# Disabled unless the server is running (tests and scripts build fresh).
 import copy as _copy  # noqa: E402
 import threading as _threading  # noqa: E402
 
+_log = logging.getLogger("resistance-dashboard.payload")
+
 _PAYLOAD_MEMO_ENABLED = False
-_PAYLOAD_MEMO: Dict[str, Tuple[float, Optional[float], Dict[str, Any]]] = {}
+_PAYLOAD_MEMO: Dict[str, Tuple[float, Optional[float], int, Dict[str, Any]]] = {}
 _PAYLOAD_MEMO_LOCK = _threading.Lock()
 _PAYLOAD_BUILD_LOCKS: Dict[str, Any] = {}
+_PAYLOAD_REBUILDING: set = set()
+# Latest daily-tasks board patched into the memo, with the monotonic time
+# it landed. A rebuild that started before the patch reapplies it so the
+# background build cannot drop the quest write.
+_DAILY_PATCH: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 # Bumped by every invalidation (any POST). A build that started before a
 # write must not be stored or served afterwards: it may predate that write.
 _PAYLOAD_WRITE_GEN = 0
+
+# /api/agent/today. 45s sits in the 30–60s window. Off unless serving, so
+# unit tests that hit the route twice still see each export.
+_TODAY_CACHE: Dict[Tuple[Any, ...], Tuple[float, int, Dict[str, Any]]] = {}
+_TODAY_LOCK = _threading.Lock()
+_TODAY_GEN = 0
 
 
 def payload_memo_ttl_sec() -> float:
@@ -535,6 +551,32 @@ def payload_memo_ttl_sec() -> float:
         return max(0.0, float(os.environ.get("FITDASH_PAYLOAD_TTL_SEC", "45")))
     except ValueError:
         return 45.0
+
+
+def agent_today_cache_ttl_sec() -> float:
+    """Seconds to reuse a /api/agent/today body. Default 45 (within 30–60)."""
+    raw = os.environ.get("FITDASH_TODAY_CACHE_SEC", "45")
+    try:
+        value = float(raw)
+    except ValueError:
+        return 45.0
+    if value <= 0:
+        return 0.0
+    return value
+
+
+def build_parallel_enabled() -> bool:
+    """Fan out independent cold-build sections.
+
+    Explicit FITDASH_BUILD_PARALLEL wins. Otherwise parallel only while the
+    serving memo is on, so the test suite keeps a single-threaded build.
+    """
+    raw = (os.environ.get("FITDASH_BUILD_PARALLEL") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    return bool(_PAYLOAD_MEMO_ENABLED)
 
 
 def _health_cache_mtime() -> Optional[float]:
@@ -546,11 +588,53 @@ def _health_cache_mtime() -> Optional[float]:
         return None
 
 
+def _payload_key(user_id: Optional[str]) -> str:
+    return (user_id or "").strip() or "__default__"
+
+
+def _user_for_payload_key(key: str) -> Optional[str]:
+    return None if key == "__default__" else key
+
+
+def invalidate_agent_today_cache() -> None:
+    global _TODAY_GEN
+    with _TODAY_LOCK:
+        _TODAY_GEN += 1
+        _TODAY_CACHE.clear()
+
+
+def _apply_daily_tasks(data: Dict[str, Any], daily_tasks: Dict[str, Any]) -> None:
+    data["daily_tasks"] = daily_tasks
+    coach = data.get("coach")
+    if isinstance(coach, dict) and isinstance(coach.get("today"), dict):
+        coach["today"]["daily_tasks"] = daily_tasks
+
+
 def invalidate_dashboard_memo() -> None:
     global _PAYLOAD_WRITE_GEN
     with _PAYLOAD_MEMO_LOCK:
         _PAYLOAD_WRITE_GEN += 1
         _PAYLOAD_MEMO.clear()
+        _DAILY_PATCH.clear()
+    invalidate_agent_today_cache()
+
+
+def _hit_fresh(hit: Tuple[Any, ...], ttl: float) -> bool:
+    built_at, mtime, _gen, _data = hit
+    if time.time() - built_at >= ttl:
+        return False
+    return mtime == _health_cache_mtime()
+
+
+def drain_payload_rebuilds(timeout: float = 2.0) -> None:
+    """Wait until background payload rebuilds finish. Tests call this."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with _PAYLOAD_MEMO_LOCK:
+            busy = bool(_PAYLOAD_REBUILDING)
+        if not busy:
+            return
+        time.sleep(0.01)
 
 
 def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False):
@@ -608,39 +692,341 @@ def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False
     return data
 
 
+def _rebuild_payload_blocking(
+    key: str,
+    user_id: Optional[str],
+    *,
+    force_refresh: bool,
+) -> Dict[str, Any]:
+    """Build under the per-key lock. Concurrent callers share one build."""
+    with _PAYLOAD_MEMO_LOCK:
+        build_lock = _PAYLOAD_BUILD_LOCKS.setdefault(key, _threading.Lock())
+    with build_lock:
+        ttl = payload_memo_ttl_sec()
+        if not force_refresh:
+            with _PAYLOAD_MEMO_LOCK:
+                hit = _PAYLOAD_MEMO.get(key)
+                gen_now = _PAYLOAD_WRITE_GEN
+            if hit is not None and hit[2] == gen_now and _hit_fresh(hit, ttl):
+                return _copy.deepcopy(hit[3])
+        with _PAYLOAD_MEMO_LOCK:
+            gen_start = _PAYLOAD_WRITE_GEN
+        started_at = time.monotonic()
+        data = build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
+        with _PAYLOAD_MEMO_LOCK:
+            # Store only if no write landed while we were building.
+            if _PAYLOAD_WRITE_GEN == gen_start:
+                patched = _DAILY_PATCH.get(key)
+                if (
+                    patched is not None
+                    and patched[0] >= started_at
+                    and isinstance(data, dict)
+                ):
+                    _apply_daily_tasks(data, patched[1])
+                _PAYLOAD_MEMO[key] = (
+                    time.time(),
+                    _health_cache_mtime(),
+                    gen_start,
+                    data,
+                )
+        return _copy.deepcopy(data)
+
+
+def _schedule_payload_rebuild(key: str, user_id: Optional[str]) -> None:
+    """Single-flight background rebuild. Callers do not wait."""
+    with _PAYLOAD_MEMO_LOCK:
+        if key in _PAYLOAD_REBUILDING:
+            return
+        _PAYLOAD_REBUILDING.add(key)
+
+    def run() -> None:
+        try:
+            _rebuild_payload_blocking(key, user_id, force_refresh=False)
+        except Exception as e:  # noqa: BLE001
+            _log.warning("payload rebuild failed: %s", type(e).__name__)
+        finally:
+            with _PAYLOAD_MEMO_LOCK:
+                _PAYLOAD_REBUILDING.discard(key)
+
+    _threading.Thread(target=run, name="fitdash-payload-rebuild", daemon=True).start()
+
+
+def refresh_memoized_payloads() -> None:
+    """Warm-loop hook: rebuild cached payloads after health.json is refreshed."""
+    if not _PAYLOAD_MEMO_ENABLED:
+        return
+    with _PAYLOAD_MEMO_LOCK:
+        keys = list(_PAYLOAD_MEMO.keys())
+    if not keys:
+        keys = ["__default__"]
+    for key in keys:
+        _schedule_payload_rebuild(key, _user_for_payload_key(key))
+
+
 def load_dashboard_data(
     *,
     force_refresh: bool = False,
     user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Memoized front for ``build_dashboard_data`` (see payload memo above)."""
+    """Memoized front for ``build_dashboard_data``.
+
+    Fresh hits return immediately. A stale hit (TTL or health.json mtime)
+    also returns immediately while one rebuild runs in the background.
+    The caller blocks only when nothing is cached, the cache was invalidated
+    by a write, or ``force_refresh`` is set.
+    """
     ttl = payload_memo_ttl_sec()
     if not _PAYLOAD_MEMO_ENABLED or ttl <= 0:
         return build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
-    key = (user_id or "").strip() or "__default__"
+    key = _payload_key(user_id)
+    if force_refresh:
+        return _rebuild_payload_blocking(key, user_id, force_refresh=True)
     with _PAYLOAD_MEMO_LOCK:
-        build_lock = _PAYLOAD_BUILD_LOCKS.setdefault(key, _threading.Lock())
-    with build_lock:
-        if not force_refresh:
-            with _PAYLOAD_MEMO_LOCK:
-                hit = _PAYLOAD_MEMO.get(key)
-                gen_now = _PAYLOAD_WRITE_GEN
-            if hit is not None:
-                built_at, mtime, gen, data = hit
-                if (
-                    gen == gen_now
-                    and time.time() - built_at < ttl
-                    and mtime == _health_cache_mtime()
-                ):
-                    return _copy.deepcopy(data)
-        with _PAYLOAD_MEMO_LOCK:
-            gen_start = _PAYLOAD_WRITE_GEN
-        data = build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
-        with _PAYLOAD_MEMO_LOCK:
-            # Store only if no write landed while we were building.
-            if _PAYLOAD_WRITE_GEN == gen_start:
-                _PAYLOAD_MEMO[key] = (time.time(), _health_cache_mtime(), gen_start, data)
-        return _copy.deepcopy(data)
+        hit = _PAYLOAD_MEMO.get(key)
+        gen_now = _PAYLOAD_WRITE_GEN
+    if hit is None or hit[2] != gen_now:
+        return _rebuild_payload_blocking(key, user_id, force_refresh=False)
+    if _hit_fresh(hit, ttl):
+        return _copy.deepcopy(hit[3])
+    _schedule_payload_rebuild(key, user_id)
+    return _copy.deepcopy(hit[3])
+
+
+def patch_daily_tasks_memo(user_id: Optional[str], daily_tasks: Any) -> None:
+    """Replace only ``daily_tasks`` on the cached payload.
+
+    GET /api/daily-tasks used to drop the whole memo, so a page load paid
+    for two builds. The rest of the body stays; the next read sees this
+    quest board without a rebuild.
+    """
+    if not _PAYLOAD_MEMO_ENABLED or not isinstance(daily_tasks, dict):
+        return
+    key = _payload_key(user_id)
+    stored = _copy.deepcopy(daily_tasks)
+    with _PAYLOAD_MEMO_LOCK:
+        _DAILY_PATCH[key] = (time.monotonic(), stored)
+        hit = _PAYLOAD_MEMO.get(key)
+        if hit is None:
+            return
+        built_at, mtime, gen, data = hit
+        if not isinstance(data, dict):
+            return
+        _apply_daily_tasks(data, stored)
+        _PAYLOAD_MEMO[key] = (built_at, mtime, gen, data)
+
+
+def load_agent_today_response(
+    user_id: Optional[str],
+    *,
+    headers=None,
+    query: str = "",
+    read_only: bool = False,
+) -> Dict[str, Any]:
+    """GET /api/agent/today body, cached 30–60s while the server is serving.
+
+    A write that invalidates the dashboard memo also drops this cache, so
+    the next read is computed again.
+    """
+    ttl = agent_today_cache_ttl_sec()
+    use_cache = bool(_PAYLOAD_MEMO_ENABLED and ttl > 0)
+    key = (str(user_id or ""), str(query or ""), bool(read_only))
+    now = time.monotonic()
+    if use_cache:
+        with _TODAY_LOCK:
+            hit = _TODAY_CACHE.get(key)
+            gen_now = _TODAY_GEN
+        if hit is not None and hit[1] == gen_now and now - hit[0] < ttl:
+            return _copy.deepcopy(hit[2])
+    else:
+        gen_now = 0
+    data = load_dashboard_data(force_refresh=False, user_id=user_id)
+    data = _overlay_agent_workout(
+        data,
+        user_id,
+        headers=headers,
+        query=query,
+        read_only=read_only,
+    )
+    body = export_agent_today(data)
+    if use_cache:
+        with _TODAY_LOCK:
+            if _TODAY_GEN == gen_now:
+                _TODAY_CACHE[key] = (time.monotonic(), gen_now, body)
+    return _copy.deepcopy(body)
+
+
+def _section_workout_store(
+    *,
+    nut_client,
+    uid,
+    sleep_battery,
+    now,
+    tz_name,
+    local_today,
+    sessions,
+    recovery,
+    had_real_sleep,
+    health,
+):
+    """Workout catalog + plan. Returns ``(store, error)``. Does not touch the payload."""
+    try:
+        wo = load_catalog_and_goals(nut_client)
+        equipment, equipment_src = load_preview_equipment(str(uid or ""))
+        custom, custom_src = load_custom_movements(str(uid or ""))
+        overlay, library_src = load_library_overlay(str(uid or ""))
+        catalog = merge_custom_universe(wo["catalog"], custom)
+        catalog = apply_library_overlay(catalog, overlay)
+        catalog = apply_goals_volume_caps(catalog, wo["goals"])
+        from rt_dashboard.training_day import last_wake_from, training_day_iso
+
+        last_wake = last_wake_from(sleep_battery=sleep_battery)
+        train_day = training_day_iso(
+            now=now, last_wake_at=last_wake, tz_name=tz_name
+        )
+        train_parent_done = False
+        try:
+            from rt_dashboard.daily_plan_tasks import (
+                train_parent_completed_for_planning,
+            )
+
+            train_parent_done = bool(
+                train_parent_completed_for_planning(
+                    train_day,
+                    sessions=sessions,
+                    last_wake_at=last_wake,
+                    now=now,
+                    tz_name=tz_name,
+                )
+            )
+        except Exception:
+            train_parent_done = False
+        from rt_dashboard.daily_plan_tasks import cached_training_objective
+
+        training_objective = cached_training_objective(
+            local_today
+        ) or cached_training_objective(train_day)
+        workout_plan = generate_workout_plan(
+            catalog,
+            wo["goals"],
+            sessions,
+            recovery_label=(recovery.label if recovery else None),
+            recovery_score=(recovery.score if recovery else None),
+            # Sparse Health (no real sleep) → do not auto-rest on debt-filled score
+            recovery_sparse=not had_real_sleep,
+            recovery_rhr_under=bool(
+                (recovery.inputs or {}).get("rhr_under_recovered")
+            )
+            if recovery
+            else False,
+            as_of=local_today,
+            equipment=equipment,
+            train_parent_completed=train_parent_done,
+            last_wake_at=last_wake,
+            now=now,
+            weighins=list(health.weight or []),
+            training_objective=training_objective,
+        )
+        # Effective goals include autonomous focus_muscles from plan gen
+        effective_goals = dict(wo["goals"] or {})
+        if isinstance(workout_plan.get("goals"), dict):
+            effective_goals = {
+                **effective_goals,
+                **{
+                    k: v
+                    for k, v in workout_plan["goals"].items()
+                    if not str(k).startswith("_")
+                },
+            }
+        from rt_dashboard.priority_ramp import present_served_workout
+
+        workout_plan = present_served_workout(
+            workout_plan,
+            goals=effective_goals,
+            sessions=sessions,
+            as_of=local_today,
+            recovery=recovery,
+        ) or workout_plan
+        store = {
+            "catalog": catalog,
+            "equipment": equipment,
+            "goals": effective_goals,
+            "library_suggestions": suggest_library_additions(
+                catalog, equipment, sessions
+            ),
+            "library_removals": suggest_library_removals(
+                catalog, equipment, sessions
+            ),
+            "sources": {
+                **wo["sources"],
+                "custom": custom_src,
+                "equipment": equipment_src,
+                "library": library_src,
+            },
+            "plan": workout_plan,
+        }
+        from rt_dashboard.muscle_suggestions import install_suggestions
+
+        install_suggestions(
+            store,
+            sessions,
+            user_id=str(uid or ""),
+            as_of=local_today,
+            recovery_score=(recovery.score if recovery else None),
+            recovery_sparse=not had_real_sleep,
+            rhr_under=bool((recovery.inputs or {}).get("rhr_under_recovered"))
+            if recovery
+            else False,
+            weighins=list(health.weight or []),
+        )
+        return store, None
+    except Exception as e:  # noqa: BLE001
+        workout_plan = {"message": f"Workout plan failed: {e}", "exercises": []}
+        return (
+            {
+                "catalog": {"exercises": []},
+                "equipment": {"items": []},
+                "goals": {},
+                "sources": {},
+                "plan": workout_plan,
+            },
+            f"workout_plan: {e}",
+        )
+
+
+def _spawn_section(fn):
+    """Run ``fn`` on a daemon thread with this build's context and Turso keepalive.
+
+    The thread is joined by ``_join_section``. Daemon so a failed build cannot
+    pin the process on a worker.
+    """
+    from rt_dashboard.turso_http import keepalive_scope
+
+    ctx = contextvars.copy_context()
+    box: Dict[str, Any] = {}
+
+    def run() -> None:
+        def _call() -> None:
+            with keepalive_scope():
+                try:
+                    box["value"] = fn()
+                except Exception as exc:  # noqa: BLE001
+                    box["error"] = exc
+
+        ctx.run(_call)
+
+    thread = _threading.Thread(target=run, name="fitdash-section", daemon=True)
+    thread.start()
+    box["thread"] = thread
+    return box
+
+
+def _join_section(box: Dict[str, Any]) -> Any:
+    if not box.get("joined"):
+        box["thread"].join()
+        box["joined"] = True
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
 
 
 def build_dashboard_data(
@@ -648,10 +1034,11 @@ def build_dashboard_data(
     force_refresh: bool = False,
     user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
+    from rt_dashboard.coaching_targets import coaching_settings_scope
     from rt_dashboard.nutrition_day import nutrition_build_scope
     from rt_dashboard.turso_http import keepalive_scope
 
-    with nutrition_build_scope(), keepalive_scope():
+    with nutrition_build_scope(), keepalive_scope(), coaching_settings_scope():
         return _build_dashboard_data(force_refresh=force_refresh, user_id=user_id)
 
 
@@ -678,6 +1065,15 @@ def _build_dashboard_data(
     now = local_now(tz_name)
     local_today = local_today_iso(tz_name, now=now)
     uid = (user_id or "").strip() or None
+    try:
+        from rt_dashboard.coaching_targets import load_overrides, settings_scope_active
+
+        if settings_scope_active():
+            # One coaching_target_settings read for every later caller.
+            load_overrides(str(uid or ""))
+            load_overrides("")
+    except Exception:  # noqa: BLE001
+        pass
     try:
         incremental_days = max(3, int(os.environ.get("HEALTH_INCREMENTAL_DAYS", "14")))
     except ValueError:
@@ -1010,6 +1406,40 @@ def _build_dashboard_data(
     payload["recovery"] = recovery_dict
     payload["sleep_battery"] = sleep_battery
 
+    # Labs, Hidrate, and the workout plan do not read each other's results.
+    # Nutrition (compose, meals, staples, calorie bars) stays on this thread
+    # because the later coach card reads that output. Coach card itself waits
+    # for the workout plan: build_coach_payload takes the plan, and the card
+    # reads the coach payload. Running the card beside nutrition would change
+    # the body. The warm loop still overlaps the card with the next request
+    # via stale-while-revalidate.
+    _parallel = build_parallel_enabled()
+    _labs_box = _hid_box = _wo_box = None
+    if _parallel:
+        _labs_box = _spawn_section(
+            lambda: load_labs(
+                local_dir or "",
+                user_id=uid or "",
+                targets=nut.get("targets") or {},
+                as_of=local_today,
+            )
+        )
+        _hid_box = _spawn_section(hidrate_bundle_for_build)
+        _wo_box = _spawn_section(
+            lambda: _section_workout_store(
+                nut_client=nut_client,
+                uid=uid,
+                sleep_battery=sleep_battery,
+                now=now,
+                tz_name=tz_name,
+                local_today=local_today,
+                sessions=sessions,
+                recovery=recovery,
+                had_real_sleep=had_real_sleep,
+                health=health,
+            )
+        )
+
     from rt_dashboard.nutrition_day import compose_nutrition_today, publish_civil_inout_chart
 
     _sleep_iv = list(getattr(health, "sleep_intervals", None) or [])
@@ -1096,12 +1526,15 @@ def _build_dashboard_data(
         food_logs=health.food_logs or [],
         paired_adds=(inv_suggestions or {}).get("suggestions") or [],
     )
-    labs = load_labs(
-        local_dir or "",
-        user_id=uid or "",
-        targets=nut.get("targets") or {},
-        as_of=local_today,
-    )
+    if _labs_box is not None:
+        labs = _join_section(_labs_box)
+    else:
+        labs = load_labs(
+            local_dir or "",
+            user_id=uid or "",
+            targets=nut.get("targets") or {},
+            as_of=local_today,
+        )
     payload["nutrition_store"] = {
         "inventory": nut["inventory"],
         "targets": nut["targets"],
@@ -1175,9 +1608,13 @@ def _build_dashboard_data(
             rules_target_ml,
         )
 
+        if _hid_box is not None:
+            samples, bottle = _join_section(_hid_box)
+        else:
+            samples, bottle = hidrate_bundle_for_build()
         payload["hydration_bars"] = build_hydration_bars_payload(
             hydration=health.hydration or [],
-            samples=hidrate_hydration_samples(),
+            samples=samples,
             weight=health.weight or [],
             sleep_battery=sleep_battery,
             as_of=local_today,
@@ -1188,132 +1625,36 @@ def _build_dashboard_data(
     except Exception as e:  # noqa: BLE001
         errors.append(f"hydration_bars: {e}")
         payload["hydration_bars"] = {"pacing": None}
-
-    bottle = hidrate_bottle_charge()
+        if _hid_box is not None:
+            _samples_bottle = _join_section(_hid_box)
+            bottle = _samples_bottle[1]
+        else:
+            bottle = hidrate_bundle_for_build()[1]
     payload["hidrate_bottle"] = bottle
     if isinstance(payload.get("hydration_bars"), dict):
         payload["hydration_bars"]["bottle"] = bottle
 
-    # Exercise catalog + daily workout plan (local-first, same pattern as meals)
-    try:
-        wo = load_catalog_and_goals(nut_client)
-        equipment, equipment_src = load_preview_equipment(str(uid or ""))
-        custom, custom_src = load_custom_movements(str(uid or ""))
-        overlay, library_src = load_library_overlay(str(uid or ""))
-        catalog = merge_custom_universe(wo["catalog"], custom)
-        catalog = apply_library_overlay(catalog, overlay)
-        catalog = apply_goals_volume_caps(catalog, wo["goals"])
-        from rt_dashboard.training_day import last_wake_from, training_day_iso
-
-        last_wake = last_wake_from(sleep_battery=sleep_battery)
-        train_day = training_day_iso(
-            now=now, last_wake_at=last_wake, tz_name=tz_name
-        )
-        train_parent_done = False
-        try:
-            from rt_dashboard.daily_plan_tasks import (
-                train_parent_completed_for_planning,
-            )
-
-            train_parent_done = bool(
-                train_parent_completed_for_planning(
-                    train_day,
-                    sessions=sessions,
-                    last_wake_at=last_wake,
-                    now=now,
-                    tz_name=tz_name,
-                )
-            )
-        except Exception:
-            train_parent_done = False
-        from rt_dashboard.daily_plan_tasks import cached_training_objective
-
-        training_objective = cached_training_objective(
-            local_today
-        ) or cached_training_objective(train_day)
-        workout_plan = generate_workout_plan(
-            catalog,
-            wo["goals"],
-            sessions,
-            recovery_label=(recovery.label if recovery else None),
-            recovery_score=(recovery.score if recovery else None),
-            # Sparse Health (no real sleep) → do not auto-rest on debt-filled score
-            recovery_sparse=not had_real_sleep,
-            recovery_rhr_under=bool(
-                (recovery.inputs or {}).get("rhr_under_recovered")
-            )
-            if recovery
-            else False,
-            as_of=local_today,
-            equipment=equipment,
-            train_parent_completed=train_parent_done,
-            last_wake_at=last_wake,
+    # Exercise catalog + daily workout plan (local-first, same pattern as meals).
+    # When parallel, this started beside nutrition and is joined here so the
+    # coach payload still sees the plan.
+    if _wo_box is not None:
+        workout_store, workout_err = _join_section(_wo_box)
+    else:
+        workout_store, workout_err = _section_workout_store(
+            nut_client=nut_client,
+            uid=uid,
+            sleep_battery=sleep_battery,
             now=now,
-            weighins=list(health.weight or []),
-            training_objective=training_objective,
-        )
-        # Effective goals include autonomous focus_muscles from plan gen
-        effective_goals = dict(wo["goals"] or {})
-        if isinstance(workout_plan.get("goals"), dict):
-            effective_goals = {
-                **effective_goals,
-                **{
-                    k: v
-                    for k, v in workout_plan["goals"].items()
-                    if not str(k).startswith("_")
-                },
-            }
-        from rt_dashboard.priority_ramp import present_served_workout
-
-        workout_plan = present_served_workout(
-            workout_plan,
-            goals=effective_goals,
+            tz_name=tz_name,
+            local_today=local_today,
             sessions=sessions,
-            as_of=local_today,
             recovery=recovery,
-        ) or workout_plan
-        payload["workout_store"] = {
-            "catalog": catalog,
-            "equipment": equipment,
-            "goals": effective_goals,
-            "library_suggestions": suggest_library_additions(
-                catalog, equipment, sessions
-            ),
-            "library_removals": suggest_library_removals(
-                catalog, equipment, sessions
-            ),
-            "sources": {
-                **wo["sources"],
-                "custom": custom_src,
-                "equipment": equipment_src,
-                "library": library_src,
-            },
-            "plan": workout_plan,
-        }
-        from rt_dashboard.muscle_suggestions import install_suggestions
-
-        install_suggestions(
-            payload["workout_store"],
-            sessions,
-            user_id=str(uid or ""),
-            as_of=local_today,
-            recovery_score=(recovery.score if recovery else None),
-            recovery_sparse=not had_real_sleep,
-            rhr_under=bool((recovery.inputs or {}).get("rhr_under_recovered"))
-            if recovery
-            else False,
-            weighins=list(health.weight or []),
+            had_real_sleep=had_real_sleep,
+            health=health,
         )
-    except Exception as e:  # noqa: BLE001
-        errors.append(f"workout_plan: {e}")
-        workout_plan = {"message": f"Workout plan failed: {e}", "exercises": []}
-        payload["workout_store"] = {
-            "catalog": {"exercises": []},
-            "equipment": {"items": []},
-            "goals": {},
-            "sources": {},
-            "plan": workout_plan,
-        }
+    if workout_err:
+        errors.append(workout_err)
+    payload["workout_store"] = workout_store
 
     try:
         payload["coach"] = build_coach_payload(
@@ -1848,15 +2189,29 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def _send_json(
         self, obj: Any, status: int = 200, extra_headers: Optional[list] = None
     ) -> None:
-        raw = json.dumps(obj, indent=2).encode("utf-8")
+        raw = json.dumps(obj, separators=(",", ":")).encode("utf-8")
+        accept = ""
+        headers = getattr(self, "headers", None)
+        if headers is not None:
+            try:
+                accept = headers.get("Accept-Encoding") or ""
+            except Exception:  # noqa: BLE001
+                accept = ""
+        body = raw
+        if "gzip" in str(accept).lower():
+            body = gzip.compress(raw, compresslevel=5)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(raw)))
+        if body is not raw:
+            self.send_header("Content-Encoding", "gzip")
+        # Representation depends on Accept-Encoding. APIs stay uncached.
+        self.send_header("Vary", "Accept-Encoding")
+        self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         for k, v in extra_headers or []:
             self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(raw)
+        self.wfile.write(body)
 
     def _set_session_cookie(self, session_id: str, *, clear: bool = False) -> None:
         if clear:
@@ -2310,15 +2665,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # Cookie-less agents read Chris's tenant (same row Coach writes),
                 # not the legacy ``default`` row.
                 uid = (user.get("user_id") if user else None) or agent_targets_uid() or None
-                data = load_dashboard_data(force_refresh=False, user_id=uid)
-                data = _overlay_agent_workout(
-                    data,
-                    uid,
-                    headers=self.headers,
-                    query=parsed.query or "",
-                    read_only=(principal == "agent"),
+                self._send_json(
+                    load_agent_today_response(
+                        uid,
+                        headers=self.headers,
+                        query=parsed.query or "",
+                        read_only=(principal == "agent"),
+                    )
                 )
-                self._send_json(export_agent_today(data))
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
@@ -2463,16 +2817,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 from rt_dashboard.turso_http import keepalive_scope
 
                 with keepalive_scope():
-                    try:
-                        result = ensure_daily_tasks(
-                            today,
-                            day=day,
-                            sleep_battery=bat if isinstance(bat, dict) else None,
-                            user_id=str(uid) if uid else None,
-                        )
-                    finally:
-                        # ensure_daily_tasks writes; daily_tasks is in the payload.
-                        invalidate_dashboard_memo()
+                    result = ensure_daily_tasks(
+                        today,
+                        day=day,
+                        sleep_battery=bat if isinstance(bat, dict) else None,
+                        user_id=str(uid) if uid else None,
+                    )
+                # Quest board only. A full memo drop made the following
+                # /api/dashboard rebuild the whole payload.
+                patch_daily_tasks_memo(uid, result)
                 self._send_json({"ok": True, "daily_tasks": result})
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
@@ -3991,6 +4344,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     global _PAYLOAD_MEMO_ENABLED
     _PAYLOAD_MEMO_ENABLED = True
+    register_after_health_refresh(refresh_memoized_payloads)
     server = ThreadingHTTPServer((host, int(port)), DashboardHandler)
     display_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
     print(f"FitDash listening on http://{display_host}:{port}/", flush=True)

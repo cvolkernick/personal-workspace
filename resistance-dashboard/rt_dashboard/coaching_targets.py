@@ -20,8 +20,11 @@ Auth for the agent routes is the existing ``FITDASH_AGENT_TOKEN``
 
 from __future__ import annotations
 
+import contextvars
 import os
 import sqlite3
+import threading
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -185,17 +188,43 @@ def _sqlite_save(column: str, value: Optional[int], user_id: str, updated_by: st
 
 
 def _turso_load(user_id: str) -> Dict[str, Any]:
-    from .turso_http import connect
+    from .turso_http import shared_read
 
-    with connect() as conn:
-        row = conn.execute(
-            """
-            SELECT steps, kcal, hydration_ml, updated_at
-            FROM coaching_target_settings WHERE user_id = ?
-            """,
-            (row_user_id(user_id),),
-        ).fetchone()
+    row = shared_read(
+        """
+        SELECT steps, kcal, hydration_ml, updated_at
+        FROM coaching_target_settings WHERE user_id = ?
+        """,
+        (row_user_id(user_id),),
+    ).fetchone()
     return _row_to_overrides(row)
+
+
+# One coaching_target_settings read per build (and per /api/agent/today).
+# The same row was queried once per caller — six times in a cold build,
+# three times inside export_agent_today. Callers keep using load_overrides;
+# inside the scope they share the first result.
+_SETTINGS: contextvars.ContextVar = contextvars.ContextVar(
+    "fitdash_coaching_settings", default=None
+)
+_SETTINGS_LOCK = threading.Lock()
+
+
+def settings_scope_active() -> bool:
+    return isinstance(_SETTINGS.get(), dict)
+
+
+@contextmanager
+def coaching_settings_scope():
+    """Share one ``load_overrides`` result across the current build or export."""
+    if settings_scope_active():
+        yield
+        return
+    token = _SETTINGS.set({})
+    try:
+        yield
+    finally:
+        _SETTINGS.reset(token)
 
 
 def _turso_save(column: str, value: Optional[int], user_id: str, updated_by: str) -> None:
@@ -209,14 +238,29 @@ def _turso_save(column: str, value: Optional[int], user_id: str, updated_by: str
         )
 
 
-def load_overrides(user_id: str = "") -> Dict[str, Any]:
-    """Stored overrides. Missing file, missing table, or a store error is empty."""
+def _load_overrides_uncached(user_id: str) -> Dict[str, Any]:
     try:
         if backend() == "turso":
             return _turso_load(user_id)
         return _sqlite_load(user_id)
     except Exception:
         return _empty()
+
+
+def load_overrides(user_id: str = "") -> Dict[str, Any]:
+    """Stored overrides. Missing file, missing table, or a store error is empty.
+
+    Inside ``coaching_settings_scope`` the first call for a user is reused.
+    The returned dict is a copy, so a caller can mutate it.
+    """
+    key = row_user_id(user_id)
+    cache = _SETTINGS.get()
+    if isinstance(cache, dict):
+        with _SETTINGS_LOCK:
+            if key not in cache:
+                cache[key] = _load_overrides_uncached(user_id)
+            return dict(cache[key])
+    return dict(_load_overrides_uncached(user_id))
 
 
 def stored_override(key: str, user_id: str = "") -> Optional[int]:
