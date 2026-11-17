@@ -119,6 +119,47 @@ class TestRobinhoodNormalize(unittest.TestCase):
         self.assertEqual(snap["positions"][0]["symbol"], "TSLA")
         self.assertTrue(snap["mcp"]["connected"])
 
+    def test_non_usd_total_is_not_stored_as_dollars(self):
+        # A crypto quantity must not become the dollar total. equity_value is the USD book.
+        n = normalize_robinhood_payload(
+            {
+                "data": {
+                    "total_value": {"amount": "0.00537", "currency": "BTC"},
+                    "equity_value": "474.29",
+                    "cash": {"amount": "0.05", "currency": "USD"},
+                    "buying_power": {"buying_power": "0.0500"},
+                    "currency": "USD",
+                }
+            },
+            source="live",
+        )
+        self.assertAlmostEqual(n["total_value"], 474.29)
+        self.assertAlmostEqual(n["cash"], 0.05)
+        self.assertNotIn("sizing_untrusted", n)
+
+        crypto = normalize_robinhood_payload(
+            {
+                "data": {
+                    "total_value": "0.00537",
+                    "equity_value": "0.00537",
+                    "cash": "0",
+                    "currency": "BTC",
+                    "buying_power": {"buying_power": "0"},
+                }
+            },
+            source="live",
+        )
+        self.assertEqual(crypto["sizing_untrusted"], "portfolio total is not a USD amount")
+        self.assertEqual(crypto["total_value"], 0.0)
+        self.assertEqual(crypto["cash"], 0.0)
+
+    def test_refresh_prompt_copies_usd_totals_not_crypto_quantity(self):
+        text = (Path(__file__).resolve().parents[1] / "rh_refresh_prompt.txt").read_text(encoding="utf-8")
+        self.assertIn("data.total_value", text)
+        self.assertIn("crypto_value", text)
+        self.assertIn("non-USD", text)
+        self.assertIn("average_buy_price", text)
+
 
 class TestSnapshotFallback(unittest.TestCase):
     def test_coinbase_file_fallback(self):

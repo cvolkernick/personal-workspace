@@ -50,6 +50,7 @@ def _snapshot() -> dict:
             "buying_power": 7.62,
             "unleveraged_buying_power": 7.62,
             "settled_cash": 7.62,
+            "total_value": 177.62,
             "as_of": AS_OF,
             "positions": [
                 _pos("TSLA", 1, 60),

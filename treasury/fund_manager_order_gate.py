@@ -1332,6 +1332,10 @@ def _deployable_cash_from_snapshot(path: Optional[Path] = None) -> Optional[floa
         ag = snap.get("agentic") if isinstance(snap.get("agentic"), dict) else None
         if ag is None:
             return None
+        from treasury.fund_manager import sizing_snapshot_problem
+
+        if sizing_snapshot_problem(snap, now=test_now(), max_age_hours=6.0):
+            return None
         cash, bp = _num(ag.get("cash")), _num(ag.get("buying_power"))
         if cash is None or bp is None:
             return None

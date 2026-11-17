@@ -1145,8 +1145,8 @@ class TestAnalyze(unittest.TestCase):
                 "buying_power": 0,
                 "total_value": 100,
                 "positions": [
-                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40},
-                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 60},
+                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40, "last_price": 40},
+                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 60, "last_price": 60},
                 ],
             }
         }
@@ -1154,6 +1154,51 @@ class TestAnalyze(unittest.TestCase):
         self.assertTrue(a["ok"])
         self.assertAlmostEqual(a["weights_of_deployed"]["btc_digital_credit"], 0.4, places=2)
         self.assertAlmostEqual(a["weights_of_deployed"]["stocks_growth"], 0.6, places=2)
+
+    def test_mara_mark_is_not_average_buy_price(self):
+        p = load_fund_policy()
+        rh = {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 0.05,
+                "buying_power": 0.05,
+                "total_value": 473.15,
+                "positions": [
+                    {
+                        "symbol": "MARA",
+                        "quantity": 0.712517,
+                        "average_buy_price": 11.23,
+                        "last_price": 6.495,
+                    }
+                ],
+            }
+        }
+        a = analyze_agentic_book(rh, p)
+        mara = a["positions"][0]
+        self.assertAlmostEqual(mara["market_value"], 0.712517 * 6.495, places=4)
+        self.assertNotAlmostEqual(mara["market_value"], 8.0016, places=2)
+        self.assertEqual(a["unpriced_symbols"], [])
+
+    def test_missing_price_is_not_filled_from_cost(self):
+        p = load_fund_policy()
+        rh = {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 0.05,
+                "buying_power": 0.05,
+                "total_value": 473.15,
+                "positions": [
+                    {"symbol": "MARA", "quantity": 0.712517, "average_buy_price": 11.23}
+                ],
+            }
+        }
+        a = analyze_agentic_book(rh, p)
+        self.assertIsNone(a["positions"][0]["market_value"])
+        self.assertEqual(a["unpriced_symbols"], ["MARA"])
+        self.assertEqual(a["equity_market_value_usd"], 0.0)
+        self.assertEqual(a["valuation"], "missing_market_price")
 
 
 if __name__ == "__main__":

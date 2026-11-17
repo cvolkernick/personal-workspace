@@ -15,8 +15,9 @@
 Weights are percentages only. No dollar balances, quantities or account ids
 reach the block, because the Markdown copy is committed to a public repo.
 Position weights use quantity x price from the snapshot (a ``last_price``/``price``
-if present, else average buy price, the same estimate the fund manager uses), so
-they are labeled as an estimate unless the snapshot carries live prices.
+if present, else average buy price). Sizing does not use that cost fallback;
+this block still does, and labels it an estimate, because the brief does not
+place orders.
 """
 
 from __future__ import annotations
@@ -88,7 +89,9 @@ def holdings_block(
 
     from treasury.fund_manager import analyze_agentic_book  # lazy: repo's own sleeve math
 
-    analysis = analyze_agentic_book(snapshot, policy if isinstance(policy, dict) else None)
+    analysis = analyze_agentic_book(
+        snapshot, policy if isinstance(policy, dict) else None, cost_basis_fallback=True,
+    )
     if not analysis.get("ok"):
         return _no_data("No data: " + _clip(analysis.get("error") or "analysis failed", 120), as_of_iso, age, limit)
 

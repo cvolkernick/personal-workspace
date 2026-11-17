@@ -268,7 +268,9 @@ class TestHoldings(unittest.TestCase):
         from treasury.fund_manager import _position_market_value
 
         p = SNAP["agentic"]["positions"][1]
-        self.assertEqual(_position_market_value(p), 150.0)
+        # Sizing does not invent a mark from average buy price.
+        self.assertIsNone(_position_market_value(p))
+        self.assertEqual(_position_market_value(p, allow_cost_basis=True), 150.0)
 
     def test_stale_snapshot_is_no_data_and_shows_as_of(self) -> None:
         later = datetime(2026, 10, 16, 16, 50, tzinfo=timezone.utc)  # 7h after as_of, limit 6h

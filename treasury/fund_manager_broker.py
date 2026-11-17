@@ -558,70 +558,101 @@ def load_snapshot(path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     return data if isinstance(data, dict) else None
 
 
+def _market_value(pos: Dict[str, Any], quotes: Dict[str, Decimal]) -> Optional[Decimal]:
+    """Position equity, or quantity times a market price. Never average buy price.
+
+    None means the shares are held and no market price is available.
+    """
+    for k in ("market_value", "equity", "position_equity"):
+        mv = _d(pos.get(k))
+        if mv is not None and mv > 0:
+            return mv
+    qty = _d(pos.get("quantity")) or ZERO
+    if qty <= 0:
+        return ZERO
+    px: Optional[Decimal] = None
+    for k in ("last_price", "price", "mark_price"):
+        cand = _d(pos.get(k))
+        if cand is not None and cand > 0:
+            px = cand
+            break
+    if px is None:
+        sym = str(pos.get("symbol") or "").strip().upper()
+        cand = quotes.get(sym)
+        if cand is not None and cand > 0:
+            px = cand
+    if px is None:
+        return None
+    return qty * px
+
+
 def _needs_quotes(snapshot: Dict[str, Any]) -> List[str]:
-    """Held symbols whose snapshot row has no market value / last price."""
+    """Held symbols whose row has no market value and no last/mark price."""
     ag = _snapshot_agentic(snapshot) or {}
     out = []
     for pos in ag.get("positions") or []:
         if not isinstance(pos, dict) or (_d(pos.get("quantity")) or ZERO) <= 0:
             continue
-        if _d(pos.get("market_value")) is None and not any(
-            (_d(pos.get(k)) or ZERO) > 0 for k in ("last_price", "price", "mark_price")
-        ):
+        if _market_value(pos, {}) is None:
             out.append(str(pos.get("symbol") or "").strip().upper())
     return [s for s in out if s]
 
 
 def live_quotes(snapshot: Dict[str, Any], cfg: Dict[str, Any], client: Optional["RobinhoodClient"]) -> Tuple[Dict[str, Decimal], str]:
     """Read-only RH quotes for held symbols lacking a market value.
-    Returns (quotes, valuation label). Any failure => cost-basis fallback label."""
+
+    Returns (quotes, valuation label). A miss is ``missing_market_price`` —
+    the caller does not substitute cost basis.
+    """
     need = _needs_quotes(snapshot)
     if not need:
         return {}, "snapshot_market_value"
     if client is None or not hasattr(client, "get_quotes"):
-        return {}, "cost_basis_fallback: no broker client for quotes"
+        return {}, "missing_market_price: no broker client for quotes"
     try:
         raw = client.get_quotes(sorted(set(need))) or {}
     except BrokerUnavailable:
         raise
     except Exception as exc:
         msg = str(exc)[:80] if isinstance(exc, BrokerError) else type(exc).__name__
-        return {}, f"cost_basis_fallback: quote call failed ({msg})"
+        return {}, f"missing_market_price: quote call failed ({msg})"
     q = {str(k).strip().upper(): _d(v) for k, v in (raw.items() if isinstance(raw, dict) else [])}
     q = {k: v for k, v in q.items() if v is not None and v > 0}
     missing = [s for s in need if s not in q]
     if not q:
-        return {}, "cost_basis_fallback: quotes returned nothing usable"
+        return {}, "missing_market_price: quotes returned nothing usable"
     if missing:
-        return q, f"live_quotes_partial: cost_basis_fallback for {','.join(sorted(set(missing)))}"
+        return q, "missing_market_price: " + ",".join(sorted(set(missing)))
     return q, "live_quotes"
 
 
-def book_values(snapshot: Dict[str, Any], cfg: Dict[str, Any], quotes: Optional[Dict[str, Decimal]] = None) -> Dict[str, Decimal]:
-    """Invested market value by sleeve + per stock symbol: snapshot market value,
-    else snapshot last price, else live quote, else cost basis."""
+def book_values(
+    snapshot: Dict[str, Any], cfg: Dict[str, Any], quotes: Optional[Dict[str, Decimal]] = None
+) -> Tuple[Dict[str, Decimal], List[str]]:
+    """Invested market value by sleeve + per stock symbol, and unpriced symbols.
+
+    A held symbol with no position equity, last price, or quote is listed in
+    the second value and is not filled in from average buy price.
+    """
     quotes = quotes or {}
     ag = _snapshot_agentic(snapshot) or {}
     btc_set = set(cfg["fixed_weights"]) | set(cfg["floating"])
-    out = {"btc": ZERO, "stocks": ZERO, "other": ZERO}
+    out: Dict[str, Decimal] = {"btc": ZERO, "stocks": ZERO, "other": ZERO}
     for s in cfg["stocks"]:
         out["sym:" + s] = ZERO
+    unpriced: List[str] = []
     for pos in ag.get("positions") or []:
         if not isinstance(pos, dict):
             continue
         sym = str(pos.get("symbol") or "").strip().upper()
         qty = _d(pos.get("quantity")) or ZERO
-        mv = _d(pos.get("market_value"))
+        if qty <= 0:
+            continue
+        mv = _market_value(pos, quotes)
         if mv is None:
-            px = None
-            for k in ("last_price", "price", "mark_price"):
-                px = _d(pos.get(k))
-                if px is not None and px > 0:
-                    break
-                px = None
-            if px is None:
-                px = quotes.get(sym) or _d(pos.get("average_buy_price"))
-            mv = qty * (px or ZERO)
+            if sym:
+                unpriced.append(sym)
+            continue
         if mv <= 0:
             continue
         if sym in btc_set:
@@ -631,7 +662,7 @@ def book_values(snapshot: Dict[str, Any], cfg: Dict[str, Any], quotes: Optional[
             out["sym:" + sym] += mv
         else:
             out["other"] += mv
-    return out
+    return out, unpriced
 
 
 def _snapshot_age_hours(snapshot: Dict[str, Any], now: datetime) -> Optional[float]:
@@ -1179,12 +1210,18 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
     if st:
         return done(st, why)
     snapshot = snapshot if snapshot is not None else load_snapshot()
+    from treasury.fund_manager import note_sizing_block, sizing_snapshot_problem
+
+    problem = sizing_snapshot_problem(
+        snapshot or {}, now=now, max_age_hours=cfg["snapshot_max_age_hours"]
+    )
+    if problem:
+        note_sizing_block(problem, now=now, path=decision_path)
+        return done(S_BOOK_UNKNOWN, problem)
     ag = _snapshot_agentic(snapshot or {})
     if not ag:
+        note_sizing_block("missing agentic block in robinhood snapshot", now=now, path=decision_path)
         return done(S_BOOK_UNKNOWN, "no agentic block in robinhood snapshot")
-    age = _snapshot_age_hours(snapshot, now)
-    if age is None or age > cfg["snapshot_max_age_hours"]:
-        return done(S_BOOK_UNKNOWN, f"robinhood snapshot stale/undated (age {age if age is None else round(age, 1)}h)")
     settled = settled_cash(ag)
     if settled is None:
         return done(S_BOOK_UNKNOWN, "settled cash unknown")
@@ -1250,10 +1287,36 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             _mark_unavailable(led, str(exc), now, decision_path=decision_path)
             return done(S_UNAVAILABLE, f"{exc}; backoff for the rest of this ET day; no re-plan")
         info["valuation"] = valuation
-        if valuation.startswith("cost_basis") or "cost_basis_fallback" in valuation:
-            info["notes"].append(f"40% test valuation: {valuation}")
-        bv = book_values(snapshot, cfg, quotes)
+        bv, unpriced = book_values(snapshot, cfg, quotes)
+        if unpriced:
+            names = ",".join(sorted(set(unpriced)))
+            reason = f"missing market price for {names}; not valued at cost basis; no buy"
+            info["valuation"] = valuation if "missing_market_price" in valuation else "missing_market_price: " + names
+            note_sizing_block(reason, now=now, path=decision_path)
+            return done(S_BOOK_UNKNOWN, reason)
         invested = bv["btc"] + bv["stocks"] + bv["other"]
+        stated = _d(ag.get("total_value")) if ag.get("total_value") not in (None, "") else None
+        if invested > 0 and stated is None:
+            reason = "missing total_value"
+            note_sizing_block(reason, now=now, path=decision_path)
+            return done(S_BOOK_UNKNOWN, reason)
+        if stated is not None and invested > 0:
+            cash_n = _d(ag.get("cash")) or ZERO
+            summed = invested + cash_n
+            tol = max(Decimal("1"), abs(stated) * Decimal("0.01"))
+            if abs(stated - summed) > tol:
+                reason = (
+                    f"nav {stated} disagrees with positions plus cash {summed} "
+                    f"beyond tolerance {tol}"
+                )
+                note_sizing_block(reason, now=now, path=decision_path)
+                return done(S_BOOK_UNKNOWN, reason)
+        nav_for_caps = invested + settled
+        info["nav_usd"] = float(nav_for_caps)
+        if nav_for_caps > 0:
+            info["symbol_nav_pct"] = {
+                s: float((bv.get("sym:" + s, ZERO) / nav_for_caps) * Decimal(100)) for s in cfg["stocks"]
+            }
         share = (bv["btc"] / invested) if invested > 0 else ZERO
         info["btc_share_before"] = float(round(share, 4))
         tgt = cfg["btc_target"]
@@ -1910,9 +1973,16 @@ def should_buy(
     if claim:
         return answer(False, f"{S_DAY_DONE}: {claim.get('claimed_by')} ({claim.get('reason')})")
     snapshot = snapshot if snapshot is not None else load_snapshot()
+    from treasury.fund_manager import note_sizing_block, sizing_snapshot_problem
+
+    problem = sizing_snapshot_problem(
+        snapshot or {}, now=now, max_age_hours=cfg["snapshot_max_age_hours"]
+    )
+    if problem:
+        note_sizing_block(problem, now=now)
+        return answer(False, f"{S_BOOK_UNKNOWN}: {problem}")
     ag = _snapshot_agentic(snapshot or {})
-    age = _snapshot_age_hours(snapshot or {}, now) if ag else None
-    if not ag or age is None or age > cfg["snapshot_max_age_hours"]:
+    if not ag:
         return answer(False, f"{S_BOOK_UNKNOWN}: snapshot missing/stale")
     sc = settled_cash(ag)
     if sc is None:
