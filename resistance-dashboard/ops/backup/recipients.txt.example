@@ -1,0 +1,7 @@
+# Age recipients for FitDash backups. One public key per line.
+# Copy this file to recipients.txt (or to a path outside the git checkout)
+# and add the real public key. Do not commit recipients.txt.
+# Never put a private key in this file. The private key stays offline:
+# password manager, plus a second offline copy.
+#
+# age1publickeyexamplexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

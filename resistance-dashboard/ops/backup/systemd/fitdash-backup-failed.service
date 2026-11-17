@@ -1,0 +1,10 @@
+[Unit]
+Description=Record a FitDash backup failure in last.json and the journal
+After=fitdash-backup.service
+
+[Service]
+Type=oneshot
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace/resistance-dashboard:%h/personal-workspace/resistance-dashboard/ops/backup
+EnvironmentFile=-%h/.config/resistance-dashboard/backup.env
+ExecStart=/usr/bin/python3 %h/personal-workspace/resistance-dashboard/ops/backup/fitdash_backup.py --record-failure
