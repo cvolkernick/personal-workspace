@@ -408,9 +408,9 @@ class ScoreboardTests(unittest.TestCase):
         self.assertIn("Face Pulls", names)
         self.assertIn("Assisted Pullups", names)
         self.assertIn("Machine Row", names)
-        self.assertLessEqual(names.count("Hammer Curls") + names.count("DB Curls"), 1)
-        self.assertLessEqual(len(names), goals["exercises_per_session"])
+        # The 10-set floor can add the second curl once the four-lift list is short.
         self.assertLessEqual(_hard_sets(plan), 14)
+        self.assertGreaterEqual(_hard_sets(plan), 10)
         self.assertGreater(_credit(plan, "rear_delts"), 0)
 
     def test_legs_day_with_abs_under_target_gets_an_abs_lift(self):

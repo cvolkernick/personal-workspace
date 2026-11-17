@@ -1140,6 +1140,14 @@ BACK_EXTENSION_PREFERENCE = ("back-extension", "back-extension-45")
 ABS_LETTERS = ("legs", "push")
 ABS_SETS = 2
 HIP_SETS = 1
+# A normal session stays at least this full. Deload and low recovery are exempt.
+# The 14-set cap still wins when it is lower than the floor.
+SESSION_SET_FLOOR = 10
+ACCESSORY_SET_CAP = 3
+MAIN_COMPOUND_SET_CAP = 4
+BTN_PRESS_ID = "smith-btn-press"
+BTN_LOOKBACK_DAYS = 60
+LOW_RECOVERY_BELOW = 50
 # Legs accessories that rotate with the rest of the day. The first id
 # in each group is the one we want; the rest are fallbacks when it is
 # not in the available pool. Abs rotates on its own schedule.
@@ -2944,6 +2952,152 @@ def _preferred_keep(rows: List[dict], pred, ids: Sequence[str]) -> List[dict]:
     return [row for row in rows if id(row) not in drop]
 
 
+def _is_btn_exercise(ex: Any, pool_by_id: Optional[Dict[str, dict]] = None) -> bool:
+    """Behind-the-Neck Smith Press, by id or name."""
+    if isinstance(ex, dict):
+        if str(ex.get("id") or "") == BTN_PRESS_ID:
+            return True
+        name = str(ex.get("name") or ex.get("exercise") or "")
+    else:
+        name = str(getattr(ex, "name", "") or "")
+    norm = _norm_name(name)
+    if "behind" in norm and "neck" in norm:
+        return True
+    if pool_by_id:
+        eid = _history_exercise_id(ex if isinstance(ex, dict) else {"name": name}, pool_by_id)
+        return eid == BTN_PRESS_ID
+    return False
+
+
+def btn_logged_within(
+    sessions: Sequence[Any],
+    day: str,
+    pool_by_id: Optional[Dict[str, dict]] = None,
+    *,
+    days: int = BTN_LOOKBACK_DAYS,
+) -> bool:
+    """True when Behind-the-Neck Smith Press was logged in the lookback window."""
+    try:
+        today = datetime.strptime(str(day or "")[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    cutoff = today - timedelta(days=int(days))
+    for session in sessions or []:
+        stamp = session_date_of(session)[:10]
+        if not stamp or stamp >= today.isoformat():
+            continue
+        try:
+            when = datetime.strptime(stamp, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if when < cutoff:
+            continue
+        for ex in _session_exercises(session):
+            if _is_btn_exercise(ex, pool_by_id):
+                return True
+    return False
+
+
+def _shoulder_press_substitute(
+    pool: Sequence[dict],
+    taken: Set[str],
+) -> Optional[dict]:
+    """Another overhead press when Behind-the-Neck is left out."""
+    hits = []
+    for ex in pool:
+        eid = str(ex.get("id") or "")
+        if not eid or eid in taken or eid == BTN_PRESS_ID:
+            continue
+        if pattern_family(ex) != VERTICAL_PRESS_FAMILY:
+            continue
+        hits.append(ex)
+    if not hits:
+        return None
+    hits.sort(
+        key=lambda ex: (
+            0 if str(ex.get("id") or "") == "db-shoulder-press" else 1,
+            -int(ex.get("priority") or 0),
+            str(ex.get("name") or ""),
+        )
+    )
+    return hits[0]
+
+
+def _week_abs_exercise_ids(
+    sessions: Sequence[Any],
+    plans: Sequence[Any],
+    index: Dict[str, dict],
+    day: str,
+) -> Set[str]:
+    """Abs catalog ids already used this Mon–Sun week, before ``day``."""
+    from .priority_ramp import week_monday
+
+    monday = week_monday(day)
+    if monday is None:
+        return set()
+    start = monday.isoformat()
+    today = str(day or "")[:10]
+    found: Set[str] = set()
+
+    def consider(stamp: str, exercises: Sequence[Any]) -> None:
+        if not stamp or stamp < start or stamp >= today:
+            return
+        for ex in exercises:
+            eid = _history_exercise_id(ex, index)
+            row = index.get(eid) if eid else None
+            if row is not None and _is_abs_row(row):
+                found.add(eid)
+            elif isinstance(ex, dict) and _is_abs_row(ex) and eid:
+                found.add(eid)
+
+    for session in sessions or []:
+        consider(session_date_of(session)[:10], _session_exercises(session))
+    for plan in plans or []:
+        if not isinstance(plan, dict):
+            continue
+        stamp = str(plan.get("date") or plan.get("local_today") or "")[:10]
+        consider(stamp, plan.get("exercises") or [])
+    return found
+
+
+def _choose_abs_exercise(
+    options: Sequence[dict],
+    week_ids: Set[str],
+    seen: Dict[str, str],
+    day: str,
+) -> Optional[dict]:
+    """Ab Crunch Machine is the default primary and takes one weekly slot.
+
+    Cable Crunch and the captain's chair rotate through the other slot.
+    """
+    by_id = {str(ex.get("id") or ""): ex for ex in options}
+    primary = by_id.get("ab-crunch-machine")
+    alternates = [ex for ex in options if str(ex.get("id") or "") != "ab-crunch-machine"]
+    if primary is not None and "ab-crunch-machine" not in week_ids:
+        return primary
+    if alternates:
+        return pick_rotated_accessories(alternates, seen, day, 1)[0]
+    if options:
+        return pick_rotated_accessories(list(options), seen, day, 1)[0]
+    return None
+
+
+def _session_floor_exempt(
+    *,
+    deload: bool,
+    recovery_score: Optional[float],
+    recovery_rhr_under: bool,
+) -> bool:
+    if deload or recovery_rhr_under:
+        return True
+    if recovery_score is None:
+        return False
+    try:
+        return float(recovery_score) < LOW_RECOVERY_BELOW
+    except (TypeError, ValueError):
+        return False
+
+
 def rotation_candidates_for(
     st: str,
     pool: Sequence[dict],
@@ -3513,11 +3667,46 @@ def shape_session_coverage(
     abs_options = _abs_rotation_candidates(pool_by_id)
     abs_choice = None
     if abs_due and abs_options:
-        # Abs recency crosses letters. A crunch on push should not be
-        # the automatic pick again on the next legs day.
+        # Ab Crunch Machine is the default primary and takes one weekly
+        # slot. The other slot rotates cable crunch and the captain's chair.
         abs_seen = accessory_last_seen("", day, sessions, plans, pool_by_id)
-        abs_choice = pick_rotated_accessories(abs_options, abs_seen, day, 1)[0]
+        week_abs = _week_abs_exercise_ids(sessions, plans, pool_by_id, day)
+        abs_choice = _choose_abs_exercise(abs_options, week_abs, abs_seen, day)
     place_abs()
+
+    def _main_compound_id() -> Optional[str]:
+        compounds = [
+            row for row in rows
+            if str(row.get("movement") or "") == "compound"
+            and not _is_back_extension_row(row)
+        ]
+        if not compounds:
+            return None
+        compounds.sort(
+            key=lambda row: (
+                -int(row.get("priority") or 0),
+                rows.index(row),
+            )
+        )
+        return str(compounds[0].get("id") or "")
+
+    def _row_set_cap(row: dict, main_id: Optional[str]) -> int:
+        if _is_abs_row(row):
+            return ABS_SETS
+        if main_id and str(row.get("id") or "") == main_id:
+            return MAIN_COMPOUND_SET_CAP
+        return ACCESSORY_SET_CAP
+
+    def _clamp_row_sets() -> None:
+        main_id = _main_compound_id()
+        for row in rows:
+            cap_sets = _row_set_cap(row, main_id)
+            if _row_sets(row) > cap_sets:
+                _resize_plan_row(row, cap_sets, sec_frac)
+
+    # Per-exercise caps before the session cap, so a 5-set accessory
+    # shrinks instead of being deleted to make room.
+    _clamp_row_sets()
 
     while _sum_row_sets(rows) > int(session_cap):
         before = _sum_row_sets(rows)
@@ -3573,6 +3762,156 @@ def shape_session_coverage(
                     rows.remove(victim)
             if room() >= need:
                 _resize_plan_row(abs_row, ABS_SETS, sec_frac)
+
+    # Behind-the-neck is out of auto-selection unless it was logged recently.
+    # A pin is an explicit choice and stays.
+    if not btn_logged_within(sessions, day, pool_by_id):
+        for row in list(rows):
+            if str(row.get("id") or "") != BTN_PRESS_ID:
+                continue
+            if str(row.get("id") or "") in pin_set:
+                continue
+            sets_now = _row_sets(row)
+            rows.remove(row)
+            sub = _shoulder_press_substitute(pool, {str(item.get("id") or "") for item in rows})
+            if sub is None or logged(sub):
+                continue
+            if _family_slot_taken(sub, rows):
+                continue
+            use = sets_now if sets_now <= room() else room()
+            if use < 1:
+                continue
+            rows.append(_coverage_plan_row(
+                sub,
+                use,
+                sessions=sessions,
+                by_id=by_id,
+                sec_frac=sec_frac,
+                note="Overhead press in place of behind-the-neck.",
+                recovery_score=recovery_score,
+                continuity=continuity,
+                recovery_rhr_under=recovery_rhr_under,
+                equipment=equipment,
+                deload=deload,
+                weighins=weighins,
+                day=day,
+            ))
+
+    _clamp_row_sets()
+
+    # Weekly volume can thin a day. Fill back to the floor from the
+    # rotation pool, least-recent first, without breaking the hinge or the cap.
+    # Skip the fill when the pool cannot actually reach the floor. A
+    # one-lift catalog must not be inflated just because 10 is out of reach.
+    if not _session_floor_exempt(
+        deload=bool(deload),
+        recovery_score=recovery_score,
+        recovery_rhr_under=bool(recovery_rhr_under),
+    ):
+        floor_target = min(SESSION_SET_FLOOR, int(session_cap))
+        rotation_ids = {str(ex.get("id") or "") for ex in candidates}
+
+        def _can_add(ex: dict) -> bool:
+            eid = str(ex.get("id") or "")
+            if not eid or any(str(row.get("id") or "") == eid for row in rows):
+                return False
+            if eid in pin_set:
+                return False
+            if logged(ex):
+                return False
+            if _is_abs_row(ex):
+                return False
+            if eid == BTN_PRESS_ID and not btn_logged_within(sessions, day, pool_by_id):
+                return False
+            if _family_slot_taken(ex, rows):
+                return False
+            return True
+
+        def _floor_reachable() -> bool:
+            main_id = _main_compound_id()
+            total = sum(_row_set_cap(row, main_id) for row in rows)
+            virtual = list(rows)
+            for ex in pool:
+                eid = str(ex.get("id") or "")
+                if not eid or any(str(row.get("id") or "") == eid for row in virtual):
+                    continue
+                if logged(ex) or _is_abs_row(ex):
+                    continue
+                if eid == BTN_PRESS_ID and not btn_logged_within(sessions, day, pool_by_id):
+                    continue
+                if _family_slot_taken(ex, virtual):
+                    continue
+                total += _row_set_cap(ex, main_id)
+                virtual.append(ex)
+                if min(total, int(session_cap)) >= floor_target:
+                    return True
+            return min(total, int(session_cap)) >= floor_target
+
+        if not _floor_reachable():
+            floor_target = _sum_row_sets(rows)
+
+        def _filler_key(ex: dict) -> tuple:
+            eid = str(ex.get("id") or "")
+            try:
+                salt = int(str(day or "").replace("-", "") or "0")
+            except ValueError:
+                salt = 0
+            return (
+                0 if eid in rotation_ids else 1,
+                seen.get(eid) or "",
+                (salt + len(eid)) % 7,
+                str(ex.get("name") or ""),
+            )
+
+        while _sum_row_sets(rows) < floor_target and room() > 0:
+            options = [ex for ex in pool if _can_add(ex)]
+            options.sort(key=_filler_key)
+            added = False
+            for ex in options:
+                need = min(main_sets, room(), ACCESSORY_SET_CAP)
+                if primary_hinge_key(ex) or str(ex.get("movement") or "") == "compound":
+                    need = min(need, MAIN_COMPOUND_SET_CAP)
+                if need < 1:
+                    break
+                rows.append(_coverage_plan_row(
+                    ex,
+                    need,
+                    sessions=sessions,
+                    by_id=by_id,
+                    sec_frac=sec_frac,
+                    note="Filled to the session set floor.",
+                    recovery_score=recovery_score,
+                    continuity=continuity,
+                    recovery_rhr_under=recovery_rhr_under,
+                    equipment=equipment,
+                    deload=deload,
+                    weighins=weighins,
+                    day=day,
+                ))
+                added = True
+                break
+            if added:
+                continue
+            main_id = _main_compound_id()
+            bumped = False
+            bumpable = sorted(
+                rows,
+                key=lambda row: (
+                    0 if str(row.get("id") or "") in rotation_ids else 1,
+                    seen.get(str(row.get("id") or "")) or "",
+                    -_row_sets(row),
+                ),
+            )
+            for row in bumpable:
+                cap_sets = _row_set_cap(row, main_id)
+                if _row_sets(row) >= cap_sets or room() < 1:
+                    continue
+                _resize_plan_row(row, _row_sets(row) + 1, sec_frac)
+                bumped = True
+                break
+            if not bumped:
+                break
+        _clamp_row_sets()
 
     def _rank(row: dict) -> tuple:
         eid = str(row.get("id") or "")
@@ -4306,6 +4645,18 @@ def _generate_workout_plan_unguarded(
     for p in pin_ids:
         chosen.append(pool_by_id[p])
 
+    # A recent behind-the-neck log is what makes that press eligible.
+    # Otherwise the fill skips it and another overhead press takes the slot.
+    if (
+        st == "push"
+        and BTN_PRESS_ID in pool_by_id
+        and BTN_PRESS_ID not in {str(c.get("id") or "") for c in chosen}
+        and btn_logged_within(sessions, day, pool_by_id)
+        and not _already_logged_today(pool_by_id[BTN_PRESS_ID])
+        and not _family_slot_taken(pool_by_id[BTN_PRESS_ID], chosen)
+    ):
+        chosen.append(pool_by_id[BTN_PRESS_ID])
+
     # Seed with top compound if compounds preferred
     if n and goals.get("prefer_compounds_first", True):
         for e in pool_scored:
@@ -4322,6 +4673,13 @@ def _generate_workout_plan_unguarded(
         if e["id"] in {c["id"] for c in chosen}:
             continue
         if _family_slot_taken(e, chosen):
+            continue
+        # Behind-the-neck stays out unless it was logged in the last 60 days.
+        if (
+            str(e.get("id") or "") == BTN_PRESS_ID
+            and str(e.get("id") or "") not in set(pin_ids)
+            and not btn_logged_within(sessions, day, pool_by_id)
+        ):
             continue
         pattern = str(e.get("movement_pattern") or "").strip().lower()
         # Hips and back extensions rotate in later. The fill does not pin them.

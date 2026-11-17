@@ -233,10 +233,11 @@ class FeasibilityRules(unittest.TestCase):
             int((e.get("prescription") or {}).get("sets") or 0)
             for e in plan["exercises"]
         ]
-        self.assertTrue(sets)
-        self.assertNotIn(3, sets)
-        self.assertLessEqual(max(sets), 2)
-        self.assertIn(2, sets)
+        # Dumbbells and a bench cannot fill 10 sets at 2 per lift, so the
+        # floor uses the main-compound cap of 4 and the accessory cap of 3.
+        self.assertGreaterEqual(sum(sets), 10)
+        self.assertLessEqual(max(sets), 4)
+        self.assertLessEqual(sets.count(4), 1)
 
     def test_rest_day_still_fills_slot(self):
         plan = generate_workout_plan(
