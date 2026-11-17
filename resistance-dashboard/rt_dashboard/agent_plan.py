@@ -153,6 +153,32 @@ def _logged_set_on(sessions, day: str) -> bool:
     return False
 
 
+def _closed_or_logged_on_calendar_day(sessions, day: str) -> bool:
+    """True when a session was logged or closed on civil ``day``.
+
+    ``day`` is an America/New_York calendar date. A previous wake's close
+    does not count.
+    """
+    day = str(day or "")[:10]
+    if len(day) < 10:
+        return False
+    if _logged_set_on(sessions, day):
+        return True
+    from .gym_calendar import civil_closed_letter, session_close_civil_day
+
+    if civil_closed_letter(sessions, day):
+        return True
+    for session in sessions or []:
+        raw = session.to_dict() if hasattr(session, "to_dict") else session
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("date") or "")[:10] == day:
+            return True
+        if session_close_civil_day(raw) == day:
+            return True
+    return False
+
+
 def prefer_rendered_session(
     rendered: Optional[dict],
     served: Optional[dict],
@@ -165,11 +191,35 @@ def prefer_rendered_session(
     Length is not the test. The swap happens only when the rendered plan's
     date is ``today`` and its letter matches the saved row. The result is
     labeled ``local``. A set already logged today keeps the saved row so
-    Today does not change mid-workout. An empty saved row stays empty.
-    A different letter stays on the saved row.
+    Today does not change mid-workout. A different letter stays on the saved
+    row. An empty fail-loud stamp stays empty.
+
+    An empty stamp for a calendar day that has no log and no close is not
+    today's plan. The dashboard plan dated that America/New_York day is.
     """
     if not isinstance(served, dict):
         return served
+    today_s = str(today or "")[:10]
+    if (
+        today_s
+        and isinstance(rendered, dict)
+        and not rendered.get("is_rest_day")
+        and str(rendered.get("date") or "")[:10] == today_s
+        and _letter(rendered.get("session_type")) in ("push", "pull", "legs")
+        and _named_plan_exercises(rendered)
+        and not _named_plan_exercises(served)
+        and not served.get("generate_error")
+        and not _closed_or_logged_on_calendar_day(sessions, today_s)
+    ):
+        out = dict(rendered)
+        out["source"] = "local"
+        out["session_closed_today"] = False
+        out["already_trained_today"] = False
+        ctx = dict(out.get("context") or {})
+        ctx["session_closed_today"] = False
+        ctx["already_trained_today"] = False
+        out["context"] = ctx
+        return out
     if not _named_plan_exercises(served):
         return served
     if not isinstance(rendered, dict) or rendered.get("is_rest_day"):

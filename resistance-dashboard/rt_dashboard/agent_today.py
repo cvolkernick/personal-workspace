@@ -189,6 +189,21 @@ def _ppl_letter(value: Any) -> Optional[str]:
     return letter if letter in ("push", "pull", "legs") else None
 
 
+def _session_on_ny_calendar_day(row: Dict[str, Any], day: str) -> bool:
+    """True when the log date or the close instant is that civil day.
+
+    Ignores the wake window. A pull closed yesterday is not today's session.
+    """
+    day = _civil_day(day)
+    if not day:
+        return False
+    if _civil_day(row.get("date")) == day:
+        return True
+    from .gym_calendar import session_close_civil_day
+
+    return session_close_civil_day(row) == day
+
+
 def _has_real_exercises(row: Dict[str, Any]) -> bool:
     from .models import is_zero_volume_status_log
     from .test_noise import is_test_exercise_name
@@ -342,12 +357,7 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
         if row:
             plan_exercises.append(row)
 
-    from .training_day import (
-        last_wake_from,
-        session_in_wake,
-        session_training_day,
-        wake_covers_as_of,
-    )
+    from .training_day import last_wake_from, wake_covers_as_of
 
     wake = last_wake_from(payload=payload)
     if wake and not wake_covers_as_of(wake, day):
@@ -379,20 +389,14 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     planning = _planning_sessions(payload)
     recent = _recent_logged_sessions(planning, day)
     stamped = _stamp_today_letter(payload, planning, day)
-    if wake:
-        today_logged = [
-            r
-            for r in planning
-            if _ppl_letter(r.get("session_type"))
-            and session_in_wake(r, last_wake_at=wake)
-        ]
-    else:
-        today_logged = [
-            r
-            for r in planning
-            if _ppl_letter(r.get("session_type"))
-            and (_civil_day(session_training_day(r)) or _civil_day(r.get("date"))) == day
-        ]
+    # Letter and close follow the America/New_York calendar date, not the
+    # last wake. Yesterday's pull stays on yesterday.
+    today_logged = [
+        r
+        for r in planning
+        if _ppl_letter(r.get("session_type"))
+        and _session_on_ny_calendar_day(r, day)
+    ]
     if today_logged:
         # Already training/logged today — letter is that session, not the next slot.
         session_type = _ppl_letter(today_logged[0].get("session_type"))
@@ -454,15 +458,26 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
             is_rest = False
             closed_letter = None
             open_next_plan = True
-    session_closed = bool(
-        slot.get("session_closed_today")
-        or plan.get("session_closed_today")
-        or coach_wo.get("session_closed_today")
-        or slot_ctx.get("session_closed_today")
-        or plan_ctx.get("session_closed_today")
-        or closed_letter
-    )
+    # A stamp or coach flag from the previous wake is not a close. The
+    # flag is true only when a session actually closed on this calendar day.
+    # The letter is the one that owns plan_exercises, not the stale slot.
+    session_closed = bool(closed_letter)
     if open_next_plan:
+        session_closed = False
+    if "exercises" in plan:
+        exercise_letter = _ppl_letter(plan.get("session_type"))
+    elif "exercises" in slot:
+        exercise_letter = _ppl_letter(slot.get("session_type"))
+    else:
+        exercise_letter = _ppl_letter(coach_wo.get("session_type"))
+    if (
+        not today_logged
+        and not closed_letter
+        and plan_exercises
+        and exercise_letter
+    ):
+        session_type = exercise_letter
+        is_rest = False
         session_closed = False
     if open_next_plan and session_type in ("push", "pull", "legs"):
         # #1317: after a closed letter rolls to an open plan, next is the
