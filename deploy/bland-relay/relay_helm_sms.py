@@ -400,3 +400,109 @@ def helm_sms_spawn(rec, source_id=None, content_checked=False):
             _spawn(helm_forward_inbound_sms, (dict(rec), source_id, None, content_checked))
     except Exception as e:  # noqa: BLE001 - never affect the Alexandra path
         log.error("!!! helm inbound_sms spawn failed: %s !!!", type(e).__name__)
+    textcheck_spawn(rec, source_id)
+
+
+# Inbound 904 text -> Alexandra textcheck. One POST per message_id, after the
+# handler has already accepted the text and dispatched Helm. Daemon thread.
+# Unset URL or key: no request and no log. Failures stay in this thread.
+TEXTCHECK_TIMEOUT_S = 3.0
+_textcheck_lock = threading.Lock()
+
+
+def textcheck_authorization(key):
+    """Authorization header value. Change the scheme here only."""
+    return "Bearer " + str(key or "")
+
+
+def _textcheck_seen_path():
+    return _state_dir() / "textcheck_seen.json"
+
+
+def _textcheck_received_at(raw, now=None):
+    epoch = _helm_sms_epoch(raw)
+    if epoch is None:
+        epoch = time.time() if now is None else now
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def textcheck_payload(rec, source_id=None, now=None):
+    """Normalized 904 record -> {line, from, to, body, received_at, message_id}."""
+    now = time.time() if now is None else now
+    frm = None if rec.get("from") is None else str(rec.get("from"))
+    body = rec.get("body")
+    mid, _src = helm_sms_message_id(source_id, frm, body, rec.get("received_at"), now)
+    return {
+        "line": LINE_904,
+        "from": frm,
+        "to": LINE_904,
+        "body": "" if body is None else str(body),
+        "received_at": _textcheck_received_at(rec.get("received_at"), now),
+        "message_id": mid,
+    }
+
+
+def _textcheck_claim(mid, now):
+    path = _textcheck_seen_path()
+    with _textcheck_lock:
+        try:
+            seen = _load_json(path)
+        except Exception:  # noqa: BLE001
+            seen = {}
+        if not isinstance(seen, dict):
+            seen = {}
+        seen = {k: v for k, v in seen.items()
+                if isinstance(v, (int, float)) and now - float(v) <= HELM_SMS_SEEN_TTL_S}
+        if mid in seen:
+            return False
+        seen[mid] = now
+        if len(seen) > HELM_SMS_SEEN_MAX:
+            for k in sorted(seen, key=seen.get)[:len(seen) - HELM_SMS_SEEN_MAX]:
+                seen.pop(k, None)
+        try:
+            _save_json(path, seen)
+        except OSError:
+            return True
+    return True
+
+
+def textcheck_post(rec, source_id=None, now=None, opener=None):
+    """POST once. Swallows every error. Logs only sent/failed status."""
+    try:
+        url = env("ALEXANDRA_TEXTCHECK_WEBHOOK_URL")
+        key = env("ALEXANDRA_TEXTCHECK_WEBHOOK_KEY")
+        if not url or not key:
+            return
+        now = time.time() if now is None else now
+        payload = textcheck_payload(rec, source_id, now)
+        if not payload.get("message_id") or not _textcheck_claim(payload["message_id"], now):
+            return
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": textcheck_authorization(key),
+        }
+        post = opener or urllib.request.urlopen
+        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        try:
+            with post(req, timeout=TEXTCHECK_TIMEOUT_S) as resp:
+                log.info("textcheck webhook sent status=%s", resp.status)
+        except urllib.error.HTTPError as exc:
+            log.info("textcheck webhook failed status=%s", exc.code)
+        except Exception:
+            log.info("textcheck webhook failed status=err")
+    except Exception:
+        log.info("textcheck webhook failed status=err")
+
+
+def textcheck_spawn(rec, source_id=None):
+    """Daemon thread. No-op when either textcheck env var is unset."""
+    try:
+        if not env("ALEXANDRA_TEXTCHECK_WEBHOOK_URL") or not env("ALEXANDRA_TEXTCHECK_WEBHOOK_KEY"):
+            return
+        threading.Thread(
+            target=textcheck_post, args=(dict(rec), source_id), daemon=True,
+        ).start()
+    except Exception:
+        log.info("textcheck webhook failed status=err")

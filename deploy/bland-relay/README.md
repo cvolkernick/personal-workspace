@@ -715,6 +715,21 @@ Rollback: `printf %s off | ~/bin/bland-relay-setkey POST_CALL_INGEST` and `print
   - First-contact approvals (`YES <6 digits>`) are exempt so a retry still counts. Test records skip content dedupe. `INBOUND_CONTENT_DEDUPE=0` turns the handler gate off (Alexandra back to the 120 s window only; Helm keeps its own content check).
 - Lag telemetry: the `helm inbound_sms ok|FAILED` journal line carries `src_at` (source time, ET) and `lag_s`. The Pi's `relay-lag-alarm` timer reads it.
 
+## Inbound 904 SMS to Alexandra textcheck
+
+After an accepted inbound text on the 904 line (`+19043343975`) — the phone forwarder, SMSGate `sms:received`, or a Google Messages notification — the relay POSTs that text once as `application/json`. The Alexandra forward, replies, and the Helm inbound SMS post stay as they are. The POST runs in a daemon thread started from `helm_sms_spawn`, which is the single point those three handlers already use once a text is past dedupe.
+
+Body fields: `line`, `from`, `to`, `body`, `received_at` (ISO8601), `message_id`. `line` and `to` are `+19043343975`.
+
+The names below go in `~/.config/bland-relay/env` on prism-gateway. That is the file `bland-relay.service` loads (`EnvironmentFile=%h/.config/bland-relay/env`). Set them with `bland-relay-setkey`. Do not commit values.
+
+| Name | Role |
+|---|---|
+| `ALEXANDRA_TEXTCHECK_WEBHOOK_URL` | POST target |
+| `ALEXANDRA_TEXTCHECK_WEBHOOK_KEY` | `Authorization: Bearer <key>` (`textcheck_authorization`) |
+
+Either name unset: no request and no log. Timeout is 3 seconds. The journal line is `textcheck webhook sent status=<code>` or `textcheck webhook failed status=<code>`. A raised error is `textcheck webhook failed status=err`. The URL, the key, and the header are not logged. The same `message_id` is not posted twice.
+
 ## Deploy
 
 Not done by this PR. Do not copy these files onto prism, do not restart the unit, and do not run `install_remote.sh`, from a review. Ops runs this checklist after merge, off-peak, with no call in progress. `bland-relay.py` is the unit entry (`chmod 755`). `bland_relay.py` loads every `relay_*.py` part from the same directory (`chmod 644`), and that load imports `caller_context.py`, `meeting_check.py`, `post_call.py` and `turo_email.py`. A partial copy crash-loops the unit.
