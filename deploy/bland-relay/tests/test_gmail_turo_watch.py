@@ -1037,3 +1037,98 @@ def test_alert_state_written_under_file_lock(monkeypatch):
     bland_relay.alert_failure("call-2", "boom", 1)
     assert held == [True]
     assert json.loads(bland_relay._alert_state_path().read_text())["suppressed"] == 0
+
+
+def test_booking_mail_is_posted_once_and_guest_helm_is_unchanged(rig, monkeypatch):
+    monkeypatch.setenv("TURO_EMAIL_TOKEN", TOKEN)
+    posted = []
+
+    class Resp:
+        status = 200
+
+        def read(self):
+            return b'{"ok": true, "turo": "booking_change"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def opener(req, timeout=10):
+        posted.append((req.get_header("Authorization"), json.loads(req.data.decode()), timeout))
+        return Resp()
+
+    monkeypatch.setattr(gtw.urllib.request, "urlopen", opener)
+    ok, _st = run_sync(rig)
+    assert ok
+    assert [h.get("guest") for h in rig.helm] == ["Avery", "Blake", "Jordan"]
+    assert len(posted) == 1
+    auth, body, timeout = posted[0]
+    assert auth == "Bearer " + TOKEN
+    assert body["kind"] == "booking_change"
+    assert body["schema"] == "panamerica.booking.event.v1"
+    assert body["change_type"] == "new"
+    assert body["message_id"] == "n2"
+    assert "booked" in body["subject"]
+    assert timeout == 10
+    ok2, _st2 = run_sync(rig)
+    assert ok2 and len(posted) == 1
+
+
+def test_relay_booking_change_wakes_helm(rig, monkeypatch, caplog):
+    seen = {}
+    real = bland_relay.post_json
+
+    def post_json(url, obj, headers=None, timeout=5.0, tries=2):
+        seen["headers"] = dict(headers or {})
+        seen["url"] = url
+        return real(url, obj, headers, timeout, tries)
+
+    monkeypatch.setattr(bland_relay, "post_json", post_json)
+    caplog.set_level("INFO")
+    code, body = bland_relay.turo_email_handle({
+        "kind": "booking_change",
+        "schema": "panamerica.booking.event.v1",
+        "change_type": "new",
+        "message_id": "n2",
+        "from": "Turo <noreply@mail.turo.com>",
+        "subject": "Avery's trip with your Rivian R1S is booked!",
+        "received_at": "2026-11-18T15:00:00Z",
+    }, NOW)
+    assert code == 200 and body["wake"] == "ok" and body["turo"] == "booking_change"
+    booked = [h for h in rig.helm if h.get("kind") == "booking_change"]
+    assert len(booked) == 1
+    assert booked[0]["change_type"] == "new"
+    assert booked[0]["schema"] == "panamerica.booking.event.v1"
+    assert seen["headers"]["Authorization"] == "Bearer helm-key"
+    assert seen["headers"]["Content-Type"] == "application/json"
+    assert "helm-key" not in caplog.text
+    assert "helm.example.invalid" not in caplog.text
+    assert "Authorization" not in caplog.text
+    code, again = bland_relay.turo_email_handle({
+        "kind": "booking_change",
+        "change_type": "new",
+        "message_id": "n2",
+        "from": "Turo <noreply@mail.turo.com>",
+        "subject": "Avery's trip with your Rivian R1S is booked!",
+    }, NOW)
+    assert again.get("duplicate") is True
+    assert len([h for h in rig.helm if h.get("kind") == "booking_change"]) == 1
+    code, skipped = bland_relay.turo_email_handle({
+        "kind": "booking_change",
+        "change_type": "new",
+        "message_id": "sw",
+        "from": "Turo <noreply@mail.turo.com>",
+        "subject": "(Alex's vehicle) - Sam's trip with your Honda is booked!",
+    }, NOW)
+    assert skipped.get("ignored") == "not_booking"
+    code, guest = bland_relay.turo_email_handle(
+        json.loads(json.dumps(gtw_guest_fields())), NOW)
+    assert guest.get("turo") == "accepted"
+
+
+def gtw_guest_fields():
+    fields, why = turo_email.parse_gmail_message(MSG["a1"], NOW)
+    assert why is None
+    return fields
