@@ -65,7 +65,10 @@ class TodayFirstLoadBoot(unittest.TestCase):
 
     def test_failed_fetch_is_honest_error_not_spinner(self):
         self.assertIn("Failed to load dashboard:", JS)
-        self.assertIn('showAlert(`Failed to load dashboard: ${e.message}`, "err")', JS)
+        self.assertIn(
+            'showAlert(`Failed to load dashboard: ${e.message}`, "err", { persist: true })',
+            JS,
+        )
         # Auth failure also drops the spinner (gate, not infinite Loading…).
         self.assertIn("function showLoginGate", JS)
         gate = JS.split("function showLoginGate", 1)[1].split("function showAppShell", 1)[0]

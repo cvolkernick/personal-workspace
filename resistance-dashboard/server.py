@@ -918,6 +918,31 @@ def load_agent_today_response(
     return _copy.deepcopy(body)
 
 
+_SECRET_RE = re.compile(
+    r"(?i)bearer\s+\S+"
+    r"|github_pat_[A-Za-z0-9_]+"
+    r"|ghp_[A-Za-z0-9]+"
+    r"|gho_[A-Za-z0-9]+"
+    r"|x-access-token:\S+"
+    r"|(token|secret|password|api[_-]?key)=[^\s&]+"
+)
+
+
+def _redact_secrets(text: str) -> str:
+    """Drop credential-shaped text before it reaches the service journal."""
+    return _SECRET_RE.sub("[redacted]", str(text or ""))
+
+
+def log_workout_plan_failure(exc: BaseException) -> None:
+    """Traceback to the service log. The client only gets a short error string."""
+    import traceback
+
+    raw = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    logging.getLogger("fitdash.workout_plan").error(
+        "workout_plan failed\n%s", _redact_secrets(raw)
+    )
+
+
 def _section_workout_store(
     *,
     nut_client,
@@ -932,6 +957,10 @@ def _section_workout_store(
     health,
 ):
     """Workout catalog + plan. Returns ``(store, error)``. Does not touch the payload."""
+    catalog: Dict[str, Any] = {"exercises": []}
+    equipment: Dict[str, Any] = {"items": []}
+    goals: Dict[str, Any] = {}
+    sources: Dict[str, Any] = {}
     try:
         wo = load_catalog_and_goals(nut_client)
         equipment, equipment_src = load_preview_equipment(str(uid or ""))
@@ -940,6 +969,13 @@ def _section_workout_store(
         catalog = merge_custom_universe(wo["catalog"], custom)
         catalog = apply_library_overlay(catalog, overlay)
         catalog = apply_goals_volume_caps(catalog, wo["goals"])
+        goals = dict(wo["goals"]) if isinstance(wo.get("goals"), dict) else {}
+        sources = {
+            **(wo.get("sources") or {}),
+            "custom": custom_src,
+            "equipment": equipment_src,
+            "library": library_src,
+        }
         from rt_dashboard.training_day import last_wake_from, training_day_iso
 
         last_wake = last_wake_from(sleep_battery=sleep_battery)
@@ -1044,13 +1080,17 @@ def _section_workout_store(
         )
         return store, None
     except Exception as e:  # noqa: BLE001
+        # The journal gets the traceback. The Today banner gets the short line.
+        # Keep the catalog that already loaded: an empty catalog paints every
+        # muscle "no programmed lift" while logged sets still have numbers.
+        log_workout_plan_failure(e)
         workout_plan = {"message": f"Workout plan failed: {e}", "exercises": []}
         return (
             {
-                "catalog": {"exercises": []},
-                "equipment": {"items": []},
-                "goals": {},
-                "sources": {},
+                "catalog": catalog if isinstance(catalog, dict) else {"exercises": []},
+                "equipment": equipment if isinstance(equipment, dict) else {"items": []},
+                "goals": goals if isinstance(goals, dict) else {},
+                "sources": sources if isinstance(sources, dict) else {},
                 "plan": workout_plan,
             },
             f"workout_plan: {e}",
