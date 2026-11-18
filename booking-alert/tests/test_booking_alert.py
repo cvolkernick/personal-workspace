@@ -137,6 +137,7 @@ def test_payload_shape(state):
         "schema": "panamerica.booking.event.v1",
         "change_type": "cancelled",
         "message_id": "mid-9",
+        "from": "Turo <noreply@mail.turo.com>",
         "subject": "Trip canceled",
         "received_at": "2026-11-18T20:04:00Z",
     }
@@ -262,4 +263,5 @@ def test_gmail_fixture_subject_is_new(tmp_path):
     assert payload["schema"] == "panamerica.booking.event.v1"
     assert payload["change_type"] == "new"
     assert payload["message_id"] == "n2"
+    assert payload["from"] == "Turo <noreply@mail.turo.com>"
     assert "booked" in payload["subject"]

@@ -183,15 +183,21 @@ def _iso(mail, now=None):
 
 
 def build_payload(mail, change_type, now=None):
-    """Helm body. kind=booking_change, schema panamerica.booking.event.v1."""
+    """Helm body. kind=booking_change, schema panamerica.booking.event.v1.
+
+    `from` is the Gmail From header. The relay classifies again, and a missing
+    sender is not Turo.
+    """
     if change_type not in CHANGE_TYPES:
         raise ValueError("change_type")
     subject = " ".join(_norm((mail or {}).get("subject")).split())[:300]
+    sender = " ".join(str((mail or {}).get("from") or "").split())[:300]
     return {
         "kind": KIND,
         "schema": SCHEMA,
         "change_type": change_type,
         "message_id": _message_id(mail or {}),
+        "from": sender,
         "subject": subject,
         "received_at": _iso(mail or {}, now),
     }

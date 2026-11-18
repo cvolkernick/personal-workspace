@@ -1070,6 +1070,7 @@ def test_booking_mail_is_posted_once_and_guest_helm_is_unchanged(rig, monkeypatc
     assert body["schema"] == "panamerica.booking.event.v1"
     assert body["change_type"] == "new"
     assert body["message_id"] == "n2"
+    assert body["from"] == "Turo <noreply@mail.turo.com>"
     assert "booked" in body["subject"]
     assert timeout == 10
     ok2, _st2 = run_sync(rig)
@@ -1126,6 +1127,37 @@ def test_relay_booking_change_wakes_helm(rig, monkeypatch, caplog):
     code, guest = bland_relay.turo_email_handle(
         json.loads(json.dumps(gtw_guest_fields())), NOW)
     assert guest.get("turo") == "accepted"
+
+
+def test_gmail_fixture_payload_wakes_helm_without_hand_added_fields(rig):
+    mod = gtw._load_booking_alert()
+    payload = mod.prepare_gmail(
+        MSG["n2"], state_dir=os.environ["GMAIL_WATCH_STATE_DIR"], now=NOW)
+    assert payload["from"] == "Turo <noreply@mail.turo.com>"
+    assert payload["change_type"] == "new"
+    posted = json.loads(json.dumps(payload))
+    code, body = bland_relay.turo_email_handle(posted, NOW)
+    assert code == 200 and body["wake"] == "ok" and body["turo"] == "booking_change"
+    booked = [h for h in rig.helm if h.get("kind") == "booking_change"]
+    assert len(booked) == 1
+    assert booked[0]["kind"] == "booking_change"
+    assert booked[0]["message_id"] == "n2"
+    assert booked[0]["from"] == "Turo <noreply@mail.turo.com>"
+
+
+def test_non_turo_gmail_sender_does_not_wake(rig):
+    mod = gtw._load_booking_alert()
+    msg = json.loads(json.dumps(MSG["n2"]))
+    for header in msg["payload"]["headers"]:
+        if str(header.get("name") or "").lower() == "from":
+            header["value"] = "News <news@example.com>"
+    state = os.environ["GMAIL_WATCH_STATE_DIR"]
+    assert mod.prepare_gmail(msg, state_dir=state, now=NOW) is None
+    payload = mod.build_payload(mod.mail_from_gmail(msg), "new", NOW)
+    assert payload["from"] == "News <news@example.com>"
+    code, body = bland_relay.turo_email_handle(json.loads(json.dumps(payload)), NOW)
+    assert code == 200 and body.get("ignored") == "not_booking"
+    assert [h for h in rig.helm if h.get("kind") == "booking_change"] == []
 
 
 def test_failed_booking_wake_releases_claim_so_retry_wakes(rig, monkeypatch):
