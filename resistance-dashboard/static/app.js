@@ -560,9 +560,10 @@
   /** Auto-dismiss delays (ms). Errors stay longer; 0 = until dismissed. */
   const ALERT_TTL = { ok: 5000, warn: 8000, err: 12000 };
 
-  function showAlert(msg, kind = "warn") {
+  function showAlert(msg, kind = "warn", opts) {
     const box = $("alerts");
     if (!box) return;
+    const persist = !!(opts && opts.persist);
     const el = document.createElement("div");
     el.className = `alert ${kind}`;
     el.setAttribute("role", kind === "err" ? "alert" : "status");
@@ -592,7 +593,8 @@
       first.remove();
     }
 
-    const ttl = ALERT_TTL[kind] != null ? ALERT_TTL[kind] : ALERT_TTL.warn;
+    const ttl = persist ? 0 : (ALERT_TTL[kind] != null ? ALERT_TTL[kind] : ALERT_TTL.warn);
+    if (persist) el.classList.add("alert-persist");
     if (ttl > 0) {
       el._ttlTimer = setTimeout(() => {
         el.classList.add("alert-fade");
@@ -7621,7 +7623,7 @@
     }
 
     if (meta.error) {
-      showAlert(`Lift source note: ${meta.error}`, "warn");
+      showAlert(`Lift source note: ${meta.error}`, "warn", { persist: true });
     }
 
     renderCharts(data);
@@ -10049,7 +10051,7 @@
       applyManualLogSessionPrefill(data);
       applyManualLogPlanPrefill(data);
       if (!quiet && data.meta && data.meta.error) {
-        showAlert(`Partial load: ${data.meta.error}`, "warn");
+        showAlert(`Partial load: ${data.meta.error}`, "warn", { persist: true });
       }
     } catch (e) {
       if (isAuthRequiredError(null, null, e && e.message)) {
@@ -10058,7 +10060,7 @@
       }
       if (quiet) return;
       clearAlerts();
-      showAlert(`Failed to load dashboard: ${e.message}`, "err");
+      showAlert(`Failed to load dashboard: ${e.message}`, "err", { persist: true });
       if (meta) meta.textContent = `Load failed: ${e.message}`;
     } finally {
       if (tick) clearInterval(tick);

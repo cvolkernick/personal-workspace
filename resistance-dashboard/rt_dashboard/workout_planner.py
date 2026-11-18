@@ -4733,6 +4733,7 @@ def _generate_workout_plan_unguarded(
     phase: Optional[str] = None,
     user_id: Optional[str] = None,
     prior_plans: Optional[Sequence[Any]] = None,
+    morning_projection: bool = False,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -6052,58 +6053,111 @@ def _generate_workout_plan_unguarded(
         out["generate_error"] = empty_plan_error
         out["message"] = empty_plan_error
         out["context"]["generate_error"] = empty_plan_error
-    if (today_logged_ids or today_logged_names) and not use_remainder and not plan_next:
-        # Keep this morning's lift list. Drop what was logged. Do not add
-        # a new lift and do not swap one out.
-        morning_sessions = [
-            s for s in sessions if str(session_date_of(s) or "")[:10] != str(day)[:10]
-        ]
-        morning = generate_workout_plan(
-            catalog,
-            goals,
-            morning_sessions,
-            recovery_label=recovery_label,
-            recovery_score=recovery_score,
-            recovery_sparse=recovery_sparse,
-            recovery_rhr_under=recovery_rhr_under,
-            deload=deload,
-            session_type=st,
-            as_of=day,
-            equipment=equipment,
-            train_parent_completed=train_parent_completed,
-            last_wake_at=last_wake_at,
-            now=now,
-            weighins=weighins,
-            training_objective=None,
-            lifts_status=lifts_status,
-            prior_lifts_status=prior_lifts_status,
-            restore_flag=restore_flag,
-            prior_restore_flag=prior_restore_flag,
-            phase=phase,
-        )
-        if str(morning.get("session_type") or "") == st and not morning.get("is_rest_day"):
-            def _done_today(ex: dict) -> bool:
-                eid = str(ex.get("id") or "")
-                if eid and eid in today_logged_ids:
-                    return True
-                return _norm_name(str(ex.get("name") or "")) in today_logged_names
+    if (
+        (today_logged_ids or today_logged_names)
+        and not use_remainder
+        and not plan_next
+        and not morning_projection
+    ):
+        # One projection of the plan without the logs that counted as today.
+        # Drop those same rows (wake window or civil day — whichever made
+        # them "today"). A second call is not a projection: morning_projection
+        # is the base case, and a filter that removes nothing is the other.
+        # The old civil-date-only filter left an after-midnight /log session
+        # in the list, so every call still saw it and called itself again.
+        today_ids = {id(s) for s in today_sessions}
+        morning_sessions = [s for s in sessions if id(s) not in today_ids]
+        if len(morning_sessions) < len(list(sessions)):
+            morning = generate_workout_plan(
+                catalog,
+                goals,
+                morning_sessions,
+                recovery_label=recovery_label,
+                recovery_score=recovery_score,
+                recovery_sparse=recovery_sparse,
+                recovery_rhr_under=recovery_rhr_under,
+                deload=deload,
+                session_type=st,
+                as_of=day,
+                equipment=equipment,
+                train_parent_completed=train_parent_completed,
+                last_wake_at=last_wake_at,
+                now=now,
+                weighins=weighins,
+                training_objective=None,
+                lifts_status=lifts_status,
+                prior_lifts_status=prior_lifts_status,
+                restore_flag=restore_flag,
+                prior_restore_flag=prior_restore_flag,
+                phase=phase,
+                morning_projection=True,
+            )
+            if str(morning.get("session_type") or "") == st and not morning.get("is_rest_day"):
+                def _done_today(ex: dict) -> bool:
+                    eid = str(ex.get("id") or "")
+                    if eid and eid in today_logged_ids:
+                        return True
+                    return _norm_name(str(ex.get("name") or "")) in today_logged_names
 
-            kept = [ex for ex in (morning.get("exercises") or []) if not _done_today(ex)]
-            kept_sets = sum(
-                int((ex.get("prescription") or {}).get("sets") or 0) for ex in kept
-            )
-            out["exercises"] = kept
-            out["message"] = re.sub(
-                rf"Suggested {re.escape(st.upper())} session \(\d+ exercises, \d+ hard sets\)",
-                f"Suggested {st.upper()} session ({len(kept)} exercises, {kept_sets} hard sets)",
-                str(out.get("message") or ""),
-            )
-            if isinstance(out.get("context"), dict):
-                out["context"]["session_hard_sets"] = kept_sets
-            out["held_compounds"] = [
-                note for note in (out.get("held_compounds") or [])
-                if "Did not add" not in note
-            ]
+                morning_rows = [ex for ex in (morning.get("exercises") or []) if isinstance(ex, dict)]
+                matched = [ex for ex in morning_rows if _done_today(ex)]
+                kept = [ex for ex in morning_rows if not _done_today(ex)]
+                # A date change can salt in one new accessory. The session is
+                # still done when every compound and the hinge were logged.
+                unlogged_mains = [
+                    ex for ex in kept
+                    if str(ex.get("movement") or "") == "compound" or primary_hinge_key(ex)
+                ]
+                session_done = bool(matched) and not unlogged_mains and (
+                    not kept or len(matched) >= SESSION_EXERCISE_FLOOR
+                )
+                if morning_rows and session_done:
+                    # Every prescribed lift was logged (Log tab, no quest
+                    # check-off). That session is done. Do not leave an
+                    # empty "0 lifts" plan and do not project again.
+                    nxt = next_letter_after(st, goals)
+                    n_match = len(matched)
+                    unit = "lift" if n_match == 1 else "lifts"
+                    out["exercises"] = []
+                    out["already_trained_today"] = True
+                    out["session_closed_today"] = True
+                    out["session_type"] = st
+                    out["ppl_logged_today"] = st
+                    out["next_session_type"] = nxt
+                    out["prescribed_match_count"] = n_match
+                    out["message"] = (
+                        f"Already trained today ({st.upper()}). "
+                        f"{n_match} {unit} as prescribed. "
+                        f"Next session: {str(nxt).upper()} tomorrow."
+                    )
+                    if isinstance(out.get("context"), dict):
+                        out["context"]["already_trained_today"] = True
+                        out["context"]["session_closed_today"] = True
+                        out["context"]["ppl_logged_today"] = st
+                        out["context"]["next_session_type"] = nxt
+                        out["context"]["session_hard_sets"] = 0
+                        out["context"]["prescribed_match_count"] = n_match
+                    out["held_compounds"] = []
+                else:
+                    # Keep this morning's lift list. Drop what was logged.
+                    # Do not add a new lift and do not swap one out.
+                    kept_sets = sum(
+                        int((ex.get("prescription") or {}).get("sets") or 0) for ex in kept
+                    )
+                    out["exercises"] = kept
+                    out["prescribed_match_count"] = len(matched)
+                    out["message"] = re.sub(
+                        rf"Suggested {re.escape(st.upper())} session \(\d+ exercises, \d+ hard sets\)",
+                        f"Suggested {st.upper()} session ({len(kept)} exercises, {kept_sets} hard sets)",
+                        str(out.get("message") or ""),
+                    )
+                    if isinstance(out.get("context"), dict):
+                        out["context"]["session_hard_sets"] = kept_sets
+                        out["context"]["prescribed_match_count"] = len(matched)
+                    out["held_compounds"] = [
+                        note for note in (out.get("held_compounds") or [])
+                        if "Did not add" not in note
+                    ]
     return _stamp_plan_remainder(out, remainder, training_objective)
 
 
