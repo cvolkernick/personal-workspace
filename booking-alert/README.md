@@ -24,3 +24,26 @@ rows are verified.
 ```bash
 python3 -m pytest booking-alert/tests -q
 ```
+
+## Deploy
+
+Not done by this PR. On prism, after merge, from a checkout of this tree.
+
+`gmail-turo-watch.service` runs `~/bin/gmail_turo_watch.py`. `_load_booking_alert` in that file, and the same helper in `relay_turo.py`, imports this package from `~/apps/booking-alert` (`Path.home() / "apps" / "booking-alert"`). Copy the `booking-alert/` directory there so `booking_alert.py` and `patterns.json` sit side by side.
+
+```bash
+install -d ~/apps
+rm -rf ~/apps/booking-alert
+cp -a booking-alert ~/apps/booking-alert
+systemctl --user restart gmail-turo-watch.service bland-relay.service
+```
+
+`bland-relay.service` restarts because `relay_turo.py` changed. That file is the copy the existing `~/bin` deploy puts next to `bland-relay.py`.
+
+Env names only: `HELM_TURO_WEBHOOK_URL`, `TURO_EMAIL_TOKEN`.
+
+The first booking wake logs no `failed status=err`. This exits 1 when that string is absent:
+
+```bash
+journalctl --user -u bland-relay.service -u gmail-turo-watch.service -n 200 --no-pager | grep -F 'failed status=err'
+```

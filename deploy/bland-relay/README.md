@@ -816,6 +816,25 @@ done
 systemctl --user restart bland-relay.service
 ```
 
+### Booking mail
+
+`gmail-turo-watch.service` runs `~/bin/gmail_turo_watch.py`. `_load_booking_alert` in that file, and the same helper in `relay_turo.py`, imports `booking-alert` from `~/apps/booking-alert` (`Path.home() / "apps" / "booking-alert"`). Copy the `booking-alert/` directory there (`booking_alert.py` and `patterns.json` side by side). `relay_turo.py` is already in the `~/bin` copy above. Restart `gmail-turo-watch.service` and `bland-relay.service` because `relay_turo.py` changed.
+
+```bash
+install -d ~/apps
+rm -rf ~/apps/booking-alert
+cp -a booking-alert ~/apps/booking-alert
+systemctl --user restart gmail-turo-watch.service bland-relay.service
+```
+
+Env names only: `HELM_TURO_WEBHOOK_URL`, `TURO_EMAIL_TOKEN`.
+
+The first booking wake logs no `failed status=err`. This exits 1 when that string is absent:
+
+```bash
+journalctl --user -u bland-relay.service -u gmail-turo-watch.service -n 200 --no-pager | grep -F 'failed status=err'
+```
+
 ## Tests
 
 From this directory, with pytest on the path:

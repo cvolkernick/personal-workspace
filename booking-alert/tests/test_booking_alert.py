@@ -103,6 +103,29 @@ def test_non_turo_from_is_not_flagged():
     assert ba.classify(mail("Your trip is booked!", **{"from": "News <news@example.com>"})) is None
 
 
+def test_deploy_checklist_names_the_pi_loader_path():
+    booking = (ROOT / "README.md").read_text(encoding="utf-8")
+    relay = (ROOT.parent / "deploy" / "bland-relay" / "README.md").read_text(encoding="utf-8")
+    for text in (booking, relay):
+        assert "~/apps/booking-alert" in text
+        assert "gmail-turo-watch.service" in text
+        assert "bland-relay.service" in text
+        assert "HELM_TURO_WEBHOOK_URL" in text
+        assert "TURO_EMAIL_TOKEN" in text
+        assert "failed status=err" in text
+
+
+def test_turo_from_is_false_when_from_is_missing_empty_or_has_no_domain():
+    assert ba._turo_from({}) is False
+    assert ba._turo_from({"from": ""}) is False
+    assert ba._turo_from({"from": "Turo"}) is False
+    assert ba._turo_from({"from": "Turo <noreply@mail.turo.com>"}) is True
+    booked = {"subject": "Alex's trip with your Toyota Corolla is booked!"}
+    assert ba.classify(dict(booked)) is None
+    assert ba.classify(dict(booked, **{"from": ""})) is None
+    assert ba.classify(dict(booked, **{"from": "Turo"})) is None
+
+
 def test_payload_shape(state):
     payload = ba.build_payload(
         mail("Trip canceled", message_id="mid-9", received_at="2026-11-18T15:04:00-05:00"),
@@ -117,6 +140,26 @@ def test_payload_shape(state):
         "subject": "Trip canceled",
         "received_at": "2026-11-18T20:04:00Z",
     }
+
+
+def test_unknown_same_subject_wakes_twice_and_message_id_still_dedupes(state, monkeypatch):
+    calls = []
+
+    def opener(url, payload, headers, timeout):
+        calls.append(payload["message_id"])
+        return 200
+
+    monkeypatch.setenv("HELM_TURO_WEBHOOK_URL", "https://helm.example.invalid/hook")
+    first = mail("Turo trip notification", message_id="unk-1")
+    second = mail("Turo trip notification", message_id="unk-2")
+    p1 = ba.prepare(first, state_dir=state, now=NOW)
+    p2 = ba.prepare(second, state_dir=state, now=NOW)
+    assert p1["change_type"] == "unknown"
+    assert p2["change_type"] == "unknown"
+    assert ba.webhook_wake(p1, opener=opener) == "ok"
+    assert ba.webhook_wake(p2, opener=opener) == "ok"
+    assert calls == ["unk-1", "unk-2"]
+    assert ba.prepare(mail("Turo trip notification", message_id="unk-1"), state_dir=state, now=NOW) is None
 
 
 def test_dedupe_same_message_and_same_reservation(state, monkeypatch):

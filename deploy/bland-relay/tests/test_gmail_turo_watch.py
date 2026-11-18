@@ -1128,6 +1128,34 @@ def test_relay_booking_change_wakes_helm(rig, monkeypatch, caplog):
     assert guest.get("turo") == "accepted"
 
 
+def test_failed_booking_wake_releases_claim_so_retry_wakes(rig, monkeypatch):
+    attempts = {"n": 0}
+
+    def post_json(url, obj, headers=None, timeout=5.0, tries=2):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            return 503, "unavailable", 1
+        rig.helm.append(json.loads(json.dumps(obj)))
+        return 200, "", 1
+
+    monkeypatch.setattr(bland_relay, "post_json", post_json)
+    obj = {
+        "kind": "booking_change",
+        "message_id": "retry-1",
+        "from": "Turo <noreply@mail.turo.com>",
+        "subject": "Avery's trip with your Rivian R1S is booked!",
+        "received_at": "2026-11-18T15:00:00Z",
+    }
+    code, first = bland_relay.turo_email_handle(dict(obj), NOW)
+    assert code == 200 and first["wake"] == "failed"
+    assert [h for h in rig.helm if h.get("kind") == "booking_change"] == []
+    code, second = bland_relay.turo_email_handle(dict(obj), NOW + 1)
+    assert code == 200 and second["wake"] == "ok"
+    booked = [h for h in rig.helm if h.get("kind") == "booking_change"]
+    assert len(booked) == 1
+    assert booked[0]["message_id"] == "retry-1"
+
+
 def gtw_guest_fields():
     fields, why = turo_email.parse_gmail_message(MSG["a1"], NOW)
     assert why is None

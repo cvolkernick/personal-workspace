@@ -105,9 +105,10 @@ def _from_domain(mail):
 
 
 def _turo_from(mail):
+    """True only for a Turo domain. A missing, empty, or domainless From is not Turo."""
     domain = _from_domain(mail)
     if not domain:
-        return True
+        return False
     return any(domain == d or domain.endswith("." + d) for d in TURO_DOMAINS)
 
 
@@ -210,7 +211,8 @@ def _keys(mail, change_type):
     if res:
         keys.append("res:%s:%s" % (res, change_type))
     subject = " ".join(_norm(mail.get("subject")).split()).casefold()
-    if subject:
+    # Generic unknown notices share a subject. Message id still dedupes those mails.
+    if subject and change_type != "unknown":
         digest = hashlib.sha256(subject.encode("utf-8")).hexdigest()[:32]
         keys.append("sub:%s:%s" % (digest, change_type))
     return keys

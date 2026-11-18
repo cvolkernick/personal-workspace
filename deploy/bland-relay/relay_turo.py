@@ -856,7 +856,11 @@ def _booking_change_handle(obj, now):
         result = mod.webhook_wake(payload, opener=_helm_wake_opener)
     except Exception:
         log.info("booking wake failed status=err")
+        mod.release(mail, change, state_dir=_state_dir(), now=now)
         return 200, {"ok": True, "turo": "booking_change", "wake": "failed"}
+    if result == "failed":
+        # A transient Helm miss must not hold the 24h claim. A retry or poll can wake again.
+        mod.release(mail, change, state_dir=_state_dir(), now=now)
     return 200, {"ok": True, "turo": "booking_change", "wake": result}
 
 
