@@ -800,12 +800,78 @@ def turo_email_event(obj, now=None):
     return ev
 
 
+def _load_booking_alert():
+    import importlib
+    import sys
+    try:
+        return importlib.import_module("booking_alert")
+    except ImportError:
+        pass
+    here = Path(__file__).resolve()
+    for cand in (
+        here.parents[2] / "booking-alert",
+        Path.home() / "apps" / "booking-alert",
+        Path.home() / "personal-workspace" / "booking-alert",
+    ):
+        if (cand / "booking_alert.py").is_file():
+            sys.path.insert(0, str(cand))
+            return importlib.import_module("booking_alert")
+    return None
+
+
+def _helm_wake_opener(url, payload, headers, timeout):
+    status, err, _attempts = post_json(url, payload, headers, timeout)
+    if status is None:
+        code = err[5:] if isinstance(err, str) and err.startswith("HTTP ") else ""
+        if code.isdigit():
+            raise urllib.error.HTTPError(url, int(code), "wake", None, None)
+        raise OSError("wake")
+    return status
+
+
+def _booking_change_handle(obj, now):
+    """kind=booking_change -> webhook_wake on the Helm Turo inbound URL. Always 200."""
+    mod = _load_booking_alert()
+    if mod is None:
+        log.info("booking wake failed status=err")
+        return 200, {"ok": True, "ignored": "no_classifier"}
+    subject = " ".join(str(obj.get("subject") or "").split())
+    mail = {
+        "subject": subject,
+        "from": obj.get("from") or "",
+        "body": obj.get("body") or "",
+        "message_id": obj.get("message_id") or "",
+        "received_at": obj.get("received_at") or "",
+    }
+    change = mod.classify(mail)
+    if change is None:
+        return 200, {"ok": True, "ignored": "not_booking"}
+    if env("TURO_EMAIL_SHADOW") == "1":
+        log.info("booking wake shadow change_type=%s", change)
+        return 200, {"ok": True, "ignored": "shadow"}
+    if not mod.claim(mail, change, state_dir=_state_dir(), now=now):
+        return 200, {"ok": True, "duplicate": True}
+    payload = mod.build_payload(mail, change, now)
+    try:
+        result = mod.webhook_wake(payload, opener=_helm_wake_opener)
+    except Exception:
+        log.info("booking wake failed status=err")
+        mod.release(mail, change, state_dir=_state_dir(), now=now)
+        return 200, {"ok": True, "turo": "booking_change", "wake": "failed"}
+    if result == "failed":
+        # A transient Helm miss must not hold the 24h claim. A retry or poll can wake again.
+        mod.release(mail, change, state_dir=_state_dir(), now=now)
+    return 200, {"ok": True, "turo": "booking_change", "wake": result}
+
+
 def turo_email_handle(obj, now=None):
     """-> (http status, response body). Same ingest path as turo_handle()."""
     now = time.time() if now is None else now
     if turo_email_disabled():
         log.info("turo email ignored (disabled)")
         return 200, {"ok": True, "ignored": "turo_disabled"}
+    if isinstance(obj, dict) and obj.get("kind") == "booking_change":
+        return _booking_change_handle(obj, now)
     ev = turo_email_event(obj, now)
     if ev is None:
         log.info("turo email ignored (empty)")

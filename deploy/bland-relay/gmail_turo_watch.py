@@ -407,6 +407,50 @@ def _gmail_counts(status):
     return isinstance(status, int) and status not in (401, 403, 429)
 
 
+def _load_booking_alert():
+    """booking-alert/booking_alert.py (repo) or ~/apps/booking-alert on the Pi."""
+    import importlib
+    import sys
+    try:
+        return importlib.import_module("booking_alert")
+    except ImportError:
+        pass
+    here = Path(__file__).resolve()
+    candidates = (
+        here.parents[2] / "booking-alert",
+        Path.home() / "apps" / "booking-alert",
+        Path.home() / "personal-workspace" / "booking-alert",
+    )
+    for cand in candidates:
+        if (cand / "booking_alert.py").is_file():
+            sys.path.insert(0, str(cand))
+            return importlib.import_module("booking_alert")
+    return None
+
+
+def _hand_booking(msg, now):
+    """Turo booking / change / cancel -> relay loopback. No-op without the relay token.
+
+    Guest messages keep using poster(). This does not change their Helm payload.
+    """
+    if not env("TURO_EMAIL_TOKEN"):
+        return False
+    try:
+        mod = _load_booking_alert()
+        if mod is None:
+            return False
+        state_dir = env("GMAIL_WATCH_STATE_DIR") or None
+        payload = mod.prepare_gmail(msg, state_dir=state_dir, now=now)
+        if not payload:
+            return False
+        if post_to_relay(payload) != OK:
+            mod.release(mod.mail_from_gmail(msg), payload.get("change_type"), state_dir=state_dir, now=now)
+        return True
+    except Exception:
+        log.info("booking wake failed status=err")
+        return False
+
+
 def process_ids(gmail, ids, st, poster, now=None):
     """Fetch, filter and hand off. -> True when every message was handled or skipped.
 
@@ -444,7 +488,9 @@ def process_ids(gmail, ids, st, poster, now=None):
         _stall_clear(st, "gmail")
         fields, why = turo_email.parse_gmail_message(msg, now)
         if fields is None:
-            if why not in ("not_turo", "label"):
+            # Guest-message filter ignores bookings. Hand those to the relay,
+            # which wakes Helm. A miss still logs the original skip reason.
+            if not _hand_booking(msg, now) and why not in ("not_turo", "label"):
                 log.info("skip msg=%s reason=%s", mid, why)
         else:
             v = _verdict(poster(fields))

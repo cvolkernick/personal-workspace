@@ -1,0 +1,56 @@
+{
+  "ignore": [
+    {
+      "id": "guest_message",
+      "re": "(?i)sent you (?:a |an )?(?:new )?messages?"
+    },
+    {
+      "id": "review",
+      "re": "(?i)\\b(left you a review|wrote a review|rate your (?:guest|trip)|how was your trip|review of your trip)\\b"
+    },
+    {
+      "id": "payout",
+      "re": "(?i)\\b(payout|you earned|trip earnings|earnings are on the way|earnings payment|you['’]ve been paid)\\b"
+    },
+    {
+      "id": "invoice",
+      "re": "(?i)\\b(invoice|receipt)\\b"
+    }
+  ],
+  "exclude": [
+    {
+      "id": "safewheels",
+      "re": "(?i)safe ?wheels"
+    },
+    {
+      "id": "alex_host",
+      "re": "(?i)(?:\\(\\s*)?alex['’]?s vehicle\\s*\\)?"
+    }
+  ],
+  "changes": [
+    {
+      "id": "turo_cancelled",
+      "verified": true,
+      "change_type": "cancelled",
+      "re": "(?i)\\b(cancell?ed|cancellation)\\b"
+    },
+    {
+      "id": "turo_modified",
+      "verified": true,
+      "change_type": "modified",
+      "re": "(?i)(changed their trip|has changed their trip|\\bmodified\\b|updated trip|trip updated|was updated|dates changed|booking was modified|trip was modified)"
+    },
+    {
+      "id": "turo_new",
+      "verified": true,
+      "change_type": "new",
+      "re": "(?i)(\\bis booked\\b|\\bbooked!|\\bnew trip\\b|reservation confirmed|trip confirmed)"
+    },
+    {
+      "id": "turo_unknown",
+      "verified": true,
+      "change_type": "unknown",
+      "re": "(?i)\\bturo trip (?:notice|notification)\\b"
+    }
+  ]
+}
