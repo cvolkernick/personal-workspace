@@ -190,13 +190,13 @@ class SessionHeaderTests(unittest.TestCase):
 
     def test_header_matches_the_lifts_in_the_plan(self) -> None:
         title = self._header(self._board(["Assisted Pullups", "Machine Row"]))
-        self.assertEqual(title, "Complete today's PULL session (2 lifts as prescribed).")
+        self.assertEqual(title, "Complete today's Pull session (0 of 2 lifts as prescribed)")
 
     def test_header_count_follows_plan(self) -> None:
         title = self._header(
             self._board(["Smith Flat Bench", "Smith Incline Bench", "DB Shoulder Press"])
         )
-        self.assertEqual(title, "Complete today's PUSH session (3 lifts as prescribed).")
+        self.assertEqual(title, "Complete today's Push session (0 of 3 lifts as prescribed)")
 
     def test_unknown_lifts_fall_back_to_plan_letter(self) -> None:
         self.assertEqual(session_header_from_lifts(["Mystery Lift"], "legs"), ("LEGS", 1))

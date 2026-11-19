@@ -78,7 +78,7 @@ class OverlayAndHeaderTests(unittest.TestCase):
                               title=e["name"]) for e in PULL]
         g = PlannedGroup(group="training", title="Training", emoji="x", items=items)
         _retitle_train_session_header(g, {"session_type": "pull", "exercises": PULL})
-        self.assertEqual(items[0].title, "Complete today's PULL session (5 lifts)")
+        self.assertEqual(items[0].title, "Complete today's Pull session (0 of 5 lifts as prescribed)")
 
 
 class ReadOnlyClosedDayTests(unittest.TestCase):

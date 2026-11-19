@@ -97,9 +97,10 @@ class TestCoach(unittest.TestCase):
         self.assertEqual(board["workout"]["session_type"], "legs")
         train = [a for a in board["actions"] if a.get("id") == "train-session"]
         self.assertEqual(len(train), 1)
-        self.assertIn("Already trained today", train[0]["text"])
-        self.assertIn("PUSH", train[0]["text"])
-        self.assertNotIn("Easy PUSH", train[0]["text"])
+        self.assertEqual(train[0]["text"], "Legs session complete (0 of 0 lifts as prescribed)")
+        self.assertNotIn("PUSH", train[0]["text"])
+        self.assertNotIn("Easy", train[0]["text"])
+        self.assertNotIn("SESSION", train[0]["text"])
 
     def test_rhr_under_recovered_is_easy_not_rest(self):
         rec = RecoveryStatus(
@@ -145,7 +146,8 @@ class TestCoach(unittest.TestCase):
         train = [a for a in board["actions"] if a.get("id") == "train-session"]
         self.assertEqual(len(train), 1)
         self.assertNotIn("Already trained today", train[0]["text"])
-        self.assertIn("LEGS", train[0]["text"])
+        self.assertIn("Legs", train[0]["text"])
+        self.assertNotIn("SESSION", train[0]["text"])
 
     def test_today_guide_stock_only_meal_and_purchases(self):
         """Shipped meal planner + today board: only stocked ids; restock when OOS."""

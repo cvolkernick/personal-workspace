@@ -169,6 +169,14 @@
     {
       "id": "lateral-raises",
       "name": "Lateral Raises",
+      "aliases": [
+        "Lateral Raise",
+        "Side Lateral Raise",
+        "Side Delt Raise",
+        "Side Laterals",
+        "DB Lateral Raise",
+        "Dumbbell Lateral Raise"
+      ],
       "session_types": [
         "push"
       ],

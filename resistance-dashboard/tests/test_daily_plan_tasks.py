@@ -136,7 +136,7 @@ class TestDailyPlanTasks(unittest.TestCase):
         # protein action + 3 foods across meal buckets
         self.assertGreaterEqual(len(by["nutrition"].items), 4)
         titles = " ".join(i.title for i in by["training"].items)
-        self.assertIn("PUSH", titles)
+        self.assertIn("Push", titles)
         self.assertIn("DB Press", titles)
         meal_titles = " ".join(i.title for i in by["nutrition"].items)
         self.assertIn("Next meal", meal_titles)
@@ -2428,7 +2428,7 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(store["curl"]["status"], "needsAction")
         self.assertIn("jot", store)
         self.assertIn("easy", store)
-        self.assertIn("Already trained today", store["easy"]["title"])
+        self.assertIn("Legs session complete", store["easy"]["title"])
         self.assertFalse(
             any("DB Flat Press" in (t.get("title") or "") for t in created)
         )

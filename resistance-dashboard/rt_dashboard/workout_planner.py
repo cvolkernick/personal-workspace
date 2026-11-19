@@ -248,6 +248,11 @@ NAME_ALIASES = {
     "db shoulder press": "db-shoulder-press",
     "lateral raises": "lateral-raises",
     "lateral raise": "lateral-raises",
+    "side lateral raise": "lateral-raises",
+    "side delt raise": "lateral-raises",
+    "side laterals": "lateral-raises",
+    "db lateral raise": "lateral-raises",
+    "dumbbell lateral raise": "lateral-raises",
     "tricep pushdowns": "tricep-pushdowns",
     "tricep pushdown": "tricep-pushdowns",
     "smith barbell row": "smith-row",
@@ -1107,6 +1112,76 @@ def _session_exercise_names(session: Any) -> List[str]:
     return names
 
 
+def prescribed_log_matches(
+    morning_rows: Sequence[dict],
+    today_sessions: Sequence[Any],
+    catalog: Optional[dict],
+    catalog_by_id: Optional[Dict[str, dict]] = None,
+) -> List[dict]:
+    """Planned lifts a /log row covers. One log covers one slot.
+
+    Exact name or catalog id, then a recorded substitution, then a catalog-guard
+    swap (same primary muscle and movement). Off-plan extras match nothing.
+    """
+    by_id = catalog_by_id or {}
+    logs: List[Tuple[str, str, str]] = []
+    substitutions: List[str] = []
+    for session in today_sessions or []:
+        raw_subs = getattr(session, "substitutions", None)
+        if raw_subs is None and isinstance(session, dict):
+            raw_subs = session.get("substitutions")
+        for sub in raw_subs or []:
+            if not isinstance(sub, dict):
+                continue
+            planned = _norm_name(str(sub.get("planned_name") or ""))
+            if planned:
+                substitutions.append(planned)
+        for name in _session_exercise_names(session):
+            norm = _norm_name(name)
+            if not norm:
+                continue
+            cid = _canonical_exercise_id(name, by_id) or NAME_ALIASES.get(norm) or ""
+            logs.append((norm, str(cid or ""), name))
+    used_logs: Set[int] = set()
+    used_subs: Set[int] = set()
+    matched: List[dict] = []
+    from .session_work import _same_slot
+
+    for ex in morning_rows or []:
+        if not isinstance(ex, dict):
+            continue
+        ename = _norm_name(str(ex.get("name") or ""))
+        eid = str(ex.get("id") or "")
+        hit: Optional[int] = None
+        for i, (norm, cid, _raw) in enumerate(logs):
+            if i in used_logs:
+                continue
+            if (ename and norm == ename) or (eid and cid and cid == eid):
+                hit = i
+                break
+        if hit is None and ename:
+            for i, planned in enumerate(substitutions):
+                if i in used_subs:
+                    continue
+                if planned == ename:
+                    used_subs.add(i)
+                    hit = -1
+                    break
+        if hit is None:
+            for i, (_norm, _cid, raw) in enumerate(logs):
+                if i in used_logs:
+                    continue
+                if _same_slot(str(ex.get("name") or ""), raw, catalog):
+                    hit = i
+                    break
+        if hit is None:
+            continue
+        if hit >= 0:
+            used_logs.add(hit)
+        matched.append(ex)
+    return matched
+
+
 def _logged_catalog_ids(
     sessions: Sequence[Any],
     catalog_by_id: Optional[Dict[str, dict]] = None,
@@ -1310,13 +1385,18 @@ def available_exercises(catalog: dict) -> List[dict]:
 
 
 def programmed_groups(catalog: dict) -> Set[str]:
-    """Groups an available=true row can credit. Empty means the map stays gray."""
+    """Groups an available=true row can credit. Empty means the map stays gray.
+
+    Uses the same name-aware groups as the tile. A lateral raise tagged only
+    ``shoulders`` still programs side delts, so the body map is not grey
+    after that lift is logged.
+    """
+    from .muscle_sets import volume_groups
+
     found: Set[str] = set()
     for ex in available_exercises(catalog or {}):
-        volume_tags = list(ex.get("volume_primary") or []) + list(ex.get("volume_secondary") or [])
-        muscle_tags = list(ex.get("primary_muscles") or []) + list(ex.get("secondary_muscles") or [])
-        tags = volume_tags if ex.get("volume_primary") or ex.get("volume_secondary") else muscle_tags
-        for group in expand_planner_muscles(tags):
+        primary, secondary = volume_groups(ex)
+        for group in list(primary) + list(secondary):
             if group in MAJOR_MUSCLES:
                 found.add(group)
     return found
@@ -6093,15 +6173,10 @@ def _generate_workout_plan_unguarded(
                 morning_projection=True,
             )
             if str(morning.get("session_type") or "") == st and not morning.get("is_rest_day"):
-                def _done_today(ex: dict) -> bool:
-                    eid = str(ex.get("id") or "")
-                    if eid and eid in today_logged_ids:
-                        return True
-                    return _norm_name(str(ex.get("name") or "")) in today_logged_names
-
                 morning_rows = [ex for ex in (morning.get("exercises") or []) if isinstance(ex, dict)]
-                matched = [ex for ex in morning_rows if _done_today(ex)]
-                kept = [ex for ex in morning_rows if not _done_today(ex)]
+                matched = prescribed_log_matches(morning_rows, today_sessions, catalog, by_id)
+                matched_ids = {id(ex) for ex in matched}
+                kept = [ex for ex in morning_rows if id(ex) not in matched_ids]
                 # A date change can salt in one new accessory. The session is
                 # still done when every compound and the hinge were logged.
                 unlogged_mains = [
@@ -6125,6 +6200,7 @@ def _generate_workout_plan_unguarded(
                     out["ppl_logged_today"] = st
                     out["next_session_type"] = nxt
                     out["prescribed_match_count"] = n_match
+                    out["prescribed_planned_count"] = len(morning_rows)
                     out["message"] = (
                         f"Already trained today ({st.upper()}). "
                         f"{n_match} {unit} as prescribed. "
@@ -6137,6 +6213,7 @@ def _generate_workout_plan_unguarded(
                         out["context"]["next_session_type"] = nxt
                         out["context"]["session_hard_sets"] = 0
                         out["context"]["prescribed_match_count"] = n_match
+                        out["context"]["prescribed_planned_count"] = len(morning_rows)
                     out["held_compounds"] = []
                 else:
                     # Keep this morning's lift list. Drop what was logged.
@@ -6146,6 +6223,7 @@ def _generate_workout_plan_unguarded(
                     )
                     out["exercises"] = kept
                     out["prescribed_match_count"] = len(matched)
+                    out["prescribed_planned_count"] = len(morning_rows)
                     out["message"] = re.sub(
                         rf"Suggested {re.escape(st.upper())} session \(\d+ exercises, \d+ hard sets\)",
                         f"Suggested {st.upper()} session ({len(kept)} exercises, {kept_sets} hard sets)",
@@ -6154,6 +6232,7 @@ def _generate_workout_plan_unguarded(
                     if isinstance(out.get("context"), dict):
                         out["context"]["session_hard_sets"] = kept_sets
                         out["context"]["prescribed_match_count"] = len(matched)
+                        out["context"]["prescribed_planned_count"] = len(morning_rows)
                     out["held_compounds"] = [
                         note for note in (out.get("held_compounds") or [])
                         if "Did not add" not in note

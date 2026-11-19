@@ -63,7 +63,7 @@ class EmptyCatalogHeaderTests(unittest.TestCase):
     def test_prism_1021_case_reads_pull(self) -> None:
         # Stale plan letter is push; the lifts are pull.
         title = _header(_board(["Assisted Pullups", "Machine Row"], letter="push"))
-        self.assertEqual(title, "Complete today's PULL session (2 lifts as prescribed).")
+        self.assertEqual(title, "Complete today's Pull session (0 of 2 lifts as prescribed)")
 
     def test_prism_push_names(self) -> None:
         names = [
@@ -85,7 +85,7 @@ class EmptyCatalogHeaderTests(unittest.TestCase):
         title = _header(
             _board(["Mystery A", "Mystery B"], letter="push", meta={"Mystery A": ["legs"], "Mystery B": "legs"})
         )
-        self.assertEqual(title, "Complete today's LEGS session (2 lifts as prescribed).")
+        self.assertEqual(title, "Complete today's Legs session (0 of 2 lifts as prescribed)")
 
     def test_unknown_names_fall_back_to_plan_letter(self) -> None:
         self.assertEqual(session_header_from_lifts(["Mystery Lift"], "legs"), ("LEGS", 1))

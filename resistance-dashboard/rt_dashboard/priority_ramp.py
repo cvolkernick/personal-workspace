@@ -301,7 +301,10 @@ def lifts_chip_status(sessions: Optional[Sequence[Any]], goals: Optional[dict], 
 
         from .guardrails import _lift_tile
 
-        tile = _lift_tile(list(sessions or []), goals or {}, datetime(day.year, day.month, day.day))
+        # Keep the caller's list object so repeated chip reads share one
+        # strength-trend index. Copy only when it is not already a sequence.
+        seq = sessions if isinstance(sessions, (list, tuple)) else list(sessions or [])
+        tile = _lift_tile(seq, goals or {}, datetime(day.year, day.month, day.day))
         return str((tile or {}).get("status") or "insufficient")
     except Exception:  # noqa: BLE001 - a missing chip must not blank the plan
         return "insufficient"

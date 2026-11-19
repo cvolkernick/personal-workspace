@@ -711,23 +711,19 @@ def build_today_board(
         n_logs = int(consumed.get("food_log_count") or 0)
 
     if rec_label == "done":
-        st = (wp.get("session_type") or "session").upper()
-        nxt = (
-            wp.get("next_session_type")
-            or (wp.get("context") or {}).get("next_session_type")
-            or "next"
-        )
+        from .daily_plan_tasks import format_session_quest, session_quest_counts
+
+        matched, planned = session_quest_counts(wp, len(exercises))
         actions.append(
             {
                 "id": "train-session",
                 "kind": "training",
                 "priority": 1,
-                "text": str(
-                    wp.get("message")
-                    or (
-                        f"Already trained today ({st}). "
-                        f"Next session: {str(nxt).upper()} tomorrow."
-                    )
+                "text": format_session_quest(
+                    str(wp.get("session_type") or ""),
+                    matched,
+                    planned,
+                    done=True,
                 ),
                 "motivation": TARGET_MOTIVATIONS["training"],
             }
@@ -756,13 +752,15 @@ def build_today_board(
             }
         )
     else:
-        st = (wp.get("session_type") or "session").upper()
-        n_ex = len(exercises)
-        prog = wp.get("workout_progress") if isinstance(wp.get("workout_progress"), dict) else {}
-        if prog.get("in_progress") and prog.get("label"):
-            train_text = f"In progress · {prog['label']}"
-        else:
-            train_text = f"Complete today's {st} session ({n_ex} lifts as prescribed)."
+        from .daily_plan_tasks import format_session_quest, session_quest_counts
+
+        matched, planned = session_quest_counts(wp, len(exercises))
+        train_text = format_session_quest(
+            str(wp.get("session_type") or ""),
+            matched,
+            planned,
+            done=False,
+        )
         actions.append(
             {
                 "id": "train-session",
@@ -920,6 +918,8 @@ def build_today_board(
             "remainder": wp.get("remainder")
             or (wp.get("context") or {}).get("remainder"),
             "session_closed_today": bool(wp.get("session_closed_today")),
+            "prescribed_match_count": wp.get("prescribed_match_count"),
+            "prescribed_planned_count": wp.get("prescribed_planned_count"),
             "workout_progress": wp.get("workout_progress")
             if isinstance(wp.get("workout_progress"), dict)
             else None,
