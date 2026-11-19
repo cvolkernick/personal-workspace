@@ -148,9 +148,12 @@ class LogOnlySessionDoesNotRecurse(unittest.TestCase):
         self.assertEqual(board.get("recommendation"), "done")
         train = next(a for a in board["actions"] if a.get("id") == "train-session")
         text = str(train.get("text") or "")
+        self.assertNotIn("SESSION", text)
         self.assertNotRegex(text, r"today's SESSION session")
-        self.assertIn(letter.upper(), text)
-        self.assertIn("lifts as prescribed", text)
+        self.assertRegex(
+            text,
+            rf"^{letter.title()} session complete \({matched} of \d+ lifts as prescribed\)$",
+        )
         self.assertNotIn("0 lifts", text)
 
     def test_one_logged_lift_keeps_the_rest_of_the_plan(self):
@@ -425,7 +428,7 @@ class TodayErrorBannerStays(unittest.TestCase):
         sw = Path(__file__).resolve().parents[1].joinpath("static", "sw.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('const CACHE = "fitdash-shell-v173"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v174"', sw)
 
 
 if __name__ == "__main__":

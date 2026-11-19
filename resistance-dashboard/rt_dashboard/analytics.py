@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -136,12 +137,15 @@ def volume_by_day(
     return rows
 
 
+_WS_RE = re.compile(r"\s+")
+
+
 def _norm_lift(name: str) -> str:
-    return re.sub(r"\s+", " ", str(name or "").strip().lower())
+    return _WS_RE.sub(" ", str(name or "").strip().lower())
 
 
 def _display_lift(name: str) -> str:
-    return re.sub(r"\s+", " ", str(name or "").strip())
+    return _WS_RE.sub(" ", str(name or "").strip())
 
 
 # Variants and the singular historical spelling share one chart title (#1134).
@@ -272,6 +276,126 @@ def _set_payload(weight_lbs: float, reps: int) -> Dict[str, Any]:
     return {"weight_lbs": weight, "reps": int(reps)}
 
 
+def _alias_key(aliases: Optional[Dict[str, Any]]) -> Tuple[Tuple[str, str], ...]:
+    if not isinstance(aliases, dict) or not aliases:
+        return ()
+    return tuple(sorted((str(key), str(val)) for key, val in aliases.items()))
+
+
+def _trend_token(sessions: Sequence[Any]) -> Tuple[Any, ...]:
+    """O(1) identity for a session list.
+
+    A new /log row is a new list from the store, or a longer list whose last
+    session changed. The strong ref stops a recycled list id from serving a
+    different history.
+    """
+    n = len(sessions) if sessions is not None else 0
+    if not n:
+        return (0, 0, "")
+    last = sessions[-1]
+    return (n, id(last), _session_date(last))
+
+
+def _trend_point(
+    session: Any,
+    display: str,
+    groups: Sequence[Sequence[Tuple[float, int, int]]],
+) -> Dict[str, Any]:
+    flat = [row for group in groups for row in group]
+    first = groups[0][0]
+    top = max(flat, key=lambda row: (row[0], row[2], row[1]))
+    tonnage = sum(weight * count * reps for weight, count, reps in flat)
+    set_count = sum(count for _weight, count, _reps in flat)
+    best_weight = max(row[0] for row in flat)
+    best_est = max(_epley(weight, reps) for weight, _count, reps in flat)
+    return {
+        "date": _session_date(session),
+        "session_type": _session_type_name(session),
+        "exercise": display,
+        "best_e1rm": best_est,
+        "best_working_weight": best_weight,
+        "first_set": _set_payload(first[0], first[2]),
+        "top_set": _set_payload(top[0], top[2]),
+        "lift_tonnage": float(tonnage),
+        "set_count": int(set_count),
+    }
+
+
+def _build_trend_index(
+    sessions: Sequence[Any],
+    table: Dict[str, str],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """One pass: canonical lift → per-session points, in session-date order.
+
+    Several exercises in one session that share a canonical name stay one
+    point. The first logged set of the first of those rows is the working
+    set. Later sets still count toward tonnage and the top set.
+    """
+    from .test_noise import is_test_exercise_name
+
+    index: Dict[str, List[Dict[str, Any]]] = {}
+    displays: Dict[str, str] = {}
+    ordered = sorted(sessions or [], key=_session_date)
+    for session in ordered:
+        buckets: Dict[str, List[List[Tuple[float, int, int]]]] = {}
+        order: List[str] = []
+        for ex in _session_exercises(session):
+            logged = _exercise_name(ex)
+            if not logged or is_test_exercise_name(logged) or is_zero_volume_status_log(ex):
+                continue
+            display = canonical_lift_name(logged, table)
+            key = _norm_lift(display)
+            if not key:
+                continue
+            sets = _exercise_sets(ex)
+            if not sets:
+                continue
+            if key not in buckets:
+                buckets[key] = []
+                order.append(key)
+                displays.setdefault(key, display)
+            buckets[key].append(sets)
+        for key in order:
+            index.setdefault(key, []).append(
+                _trend_point(session, displays.get(key) or key, buckets[key])
+            )
+    return index
+
+
+# The cold Today build asks for every lift's series, then asks again for the
+# slope, and the ramp asks for the main lifts several more times. Each of
+# those used to rescan the whole history. The index is one scan per distinct
+# session list. A strong ref keeps a recycled list id from serving another
+# history. A new day or a new log comes in as a new list from the store.
+_TREND_CACHE: List[Tuple[Any, ...]] = []
+_TREND_LOCK = threading.Lock()
+_TREND_CACHE_MAX = 6
+
+
+def _trend_index(
+    sessions: Sequence[Any],
+    aliases: Optional[Dict[str, Any]],
+    table: Dict[str, str],
+) -> Dict[str, List[Dict[str, Any]]]:
+    token = _trend_token(sessions)
+    akey = _alias_key(aliases)
+    with _TREND_LOCK:
+        for sid, cached_token, cached_key, index, ref in _TREND_CACHE:
+            if (
+                sid == id(sessions)
+                and cached_token == token
+                and cached_key == akey
+                and ref is sessions
+            ):
+                return index
+    index = _build_trend_index(sessions, table)
+    with _TREND_LOCK:
+        _TREND_CACHE.append((id(sessions), token, akey, index, sessions))
+        if len(_TREND_CACHE) > _TREND_CACHE_MAX:
+            del _TREND_CACHE[0]
+    return index
+
+
 def strength_trend(
     sessions: Sequence[Any],
     exercise_name: str,
@@ -283,49 +407,19 @@ def strength_trend(
     spelling. The first logged set is the working set double progression
     judges (#954). Later sets still count toward tonnage and the top set.
     """
-    from .test_noise import is_test_exercise_name
-
     table = lift_alias_table(aliases)
     want = canonical_lift_name(exercise_name, table)
     want_key = _norm_lift(want)
     if not want_key:
         return []
-    points: List[Dict[str, Any]] = []
-    ordered = sorted(sessions or [], key=_session_date)
-    for session in ordered:
-        groups: List[List[Tuple[float, int, int]]] = []
-        for ex in _session_exercises(session):
-            logged = _exercise_name(ex)
-            if not logged or is_test_exercise_name(logged) or is_zero_volume_status_log(ex):
-                continue
-            if _norm_lift(canonical_lift_name(logged, table)) != want_key:
-                continue
-            sets = _exercise_sets(ex)
-            if sets:
-                groups.append(sets)
-        if not groups:
-            continue
-        flat = [row for group in groups for row in group]
-        first = groups[0][0]
-        top = max(flat, key=lambda row: (row[0], row[2], row[1]))
-        tonnage = sum(weight * count * reps for weight, count, reps in flat)
-        set_count = sum(count for _weight, count, _reps in flat)
-        best_weight = max(row[0] for row in flat)
-        best_est = max(_epley(weight, reps) for weight, _count, reps in flat)
-        points.append(
-            {
-                "date": _session_date(session),
-                "session_type": _session_type_name(session),
-                "exercise": want,
-                "best_e1rm": best_est,
-                "best_working_weight": best_weight,
-                "first_set": _set_payload(first[0], first[2]),
-                "top_set": _set_payload(top[0], top[2]),
-                "lift_tonnage": float(tonnage),
-                "set_count": int(set_count),
-            }
-        )
-    return points
+    rows = _trend_index(sessions, aliases, table).get(want_key) or []
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        copied = dict(row)
+        if copied.get("exercise") != want:
+            copied["exercise"] = want
+        out.append(copied)
+    return out
 
 
 def _in_lift_window(day: str, end: str, days: int) -> bool:

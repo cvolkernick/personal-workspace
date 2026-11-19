@@ -619,6 +619,11 @@
     "db shoulder press": "db-shoulder-press",
     "lateral raises": "lateral-raises",
     "lateral raise": "lateral-raises",
+    "side lateral raise": "lateral-raises",
+    "side delt raise": "lateral-raises",
+    "side laterals": "lateral-raises",
+    "db lateral raise": "lateral-raises",
+    "dumbbell lateral raise": "lateral-raises",
     "tricep pushdowns": "tricep-pushdowns",
     "tricep pushdown": "tricep-pushdowns",
     "tricep pushdowns (rope)": "tricep-pushdowns-rope",
@@ -8215,7 +8220,7 @@
       return /^rest\s*\/\s*recover today\b/i.test(String(title || "").trim());
     }
     function isTrainSessionTitle(title) {
-      return /^(complete today's|easy |rest \/ recover today|already trained today)\b/i.test(
+      return /^(complete today's|easy |rest \/ recover today|already trained today|(?:push|pull|legs) session complete)\b/i.test(
         String(title || "").trim()
       );
     }
@@ -8228,6 +8233,8 @@
       if (easy) return String(easy[1] || "").toLowerCase();
       const complete = text.match(/complete today's\s+(push|pull|legs)\b/i);
       if (complete) return String(complete[1] || "").toLowerCase();
+      const done = text.match(/^(push|pull|legs) session complete\b/i);
+      if (done) return String(done[1] || "").toLowerCase();
       return "";
     }
     function trainingQuestTitleFrom(src) {

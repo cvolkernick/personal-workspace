@@ -139,7 +139,7 @@ SLEEP_BATTERY_LOW_SLUG_RE = re.compile(
     re.I,
 )
 TRAIN_SESSION_TITLE_RE = re.compile(
-    r"^(Complete today's|Easy |Rest / recover today|Already trained today)\b",
+    r"^(Complete today's|Easy |Rest / recover today|Already trained today|(?:Push|Pull|Legs) session complete)\b",
     re.I,
 )
 CALORIE_PACE_TITLE_RE = re.compile(
@@ -1858,6 +1858,78 @@ _COMPLETE_SESSION_RE = re.compile(
     r"^Complete today's (?P<st>\S+) session \((?P<n>\d+) lifts(?P<tail>[^)]*)\)(?P<end>.*)$",
     re.I,
 )
+_SESSION_QUEST_RE = re.compile(
+    r"^(?:Complete today's (?P<open>push|pull|legs) session|(?P<done>push|pull|legs) session complete|Already trained today)\b",
+    re.I,
+)
+
+
+def session_display_name(letter: str) -> str:
+    """Push / Pull / Legs. Unknown letters are not rendered as SESSION."""
+    return {"push": "Push", "pull": "Pull", "legs": "Legs"}.get(
+        str(letter or "").strip().lower(), ""
+    )
+
+
+def format_session_quest(letter: str, matched: int, planned: int, *, done: bool) -> str:
+    """Quest title for an open or finished PPL session.
+
+    ``matched`` is the planner's prescribed_match_count. ``planned`` is the
+    morning plan size. The noun follows ``planned``.
+    """
+    try:
+        matched_n = max(0, int(matched))
+    except (TypeError, ValueError):
+        matched_n = 0
+    try:
+        planned_n = max(0, int(planned))
+    except (TypeError, ValueError):
+        planned_n = 0
+    if planned_n < matched_n:
+        planned_n = matched_n
+    noun = "lift" if planned_n == 1 else "lifts"
+    core = f"({matched_n} of {planned_n} {noun} as prescribed)"
+    name = session_display_name(letter)
+    if done:
+        if name:
+            return f"{name} session complete {core}"
+        return f"Session complete {core}"
+    if name:
+        return f"Complete today's {name} session {core}"
+    return f"Complete today's session {core}"
+
+
+def session_quest_counts(workout: Optional[dict], open_lifts: int) -> Tuple[int, int]:
+    """(matched, planned) for the quest line.
+
+    prescribed_match_count wins. Without it, nothing is matched yet and the
+    open plan is the planned count. A closed day with no remaining lifts
+    uses the match count as the plan size.
+    """
+    wo = workout if isinstance(workout, dict) else {}
+    raw_matched = wo.get("prescribed_match_count")
+    raw_planned = wo.get("prescribed_planned_count")
+    if raw_planned is None:
+        ctx = wo.get("context") if isinstance(wo.get("context"), dict) else {}
+        raw_planned = ctx.get("prescribed_planned_count")
+        if raw_matched is None:
+            raw_matched = ctx.get("prescribed_match_count")
+    try:
+        matched = int(raw_matched) if raw_matched is not None else 0
+    except (TypeError, ValueError):
+        matched = 0
+    if raw_planned is not None:
+        try:
+            planned = int(raw_planned)
+        except (TypeError, ValueError):
+            planned = matched
+    elif wo.get("already_trained_today") and int(open_lifts or 0) <= 0:
+        planned = matched
+    else:
+        planned = matched + int(open_lifts or 0)
+    if planned < matched:
+        planned = matched
+    return max(0, matched), max(0, planned)
 
 
 _PPL = ("push", "pull", "legs")
@@ -1941,7 +2013,11 @@ def session_header_from_lifts(
 
 
 def _retitle_train_session_header(group, workout: dict) -> None:
-    """Keep 'Complete today's X session (N lifts …)' in step with the ex-* rows."""
+    """Keep the session quest on the prescribed match count, not leftover leaves.
+
+    A stale "1 lifts" header is the number of ex-* rows still open. The
+    quest uses prescribed_match_count of the morning plan instead.
+    """
     if group is None:
         return
     lifts = [it for it in group.items if str(it.slug or "").startswith("ex-")]
@@ -1956,29 +2032,37 @@ def _retitle_train_session_header(group, workout: dict) -> None:
     for it in group.items:
         if str(it.slug or "") != TRAIN_SESSION_SLUG:
             continue
-        m = _COMPLETE_SESSION_RE.match(it.title or "")
-        if (
-            not m
-            and lifts
+        title = str(it.title or "")
+        progress = _SESSION_QUEST_RE.match(title) or _COMPLETE_SESSION_RE.match(title)
+        stale_closed = (
+            lifts
             and not (workout or {}).get("already_trained_today")
-            and str(it.title or "").lower().startswith("already trained today")
-        ):
-            # #1304: ex-* leaves are an open plan, so a stale closed-day
-            # title must not head them.
-            letter, count = session_header_from_lifts(
-                names, str((workout or {}).get("session_type") or "")
-            )
-            it.title = f"Complete today's {letter} session ({count} lifts)"[:200]
-            continue
-        if not m or not lifts:
-            continue
-        letter, count = session_header_from_lifts(
-            names, str((workout or {}).get("session_type") or m.group("st"))
+            and title.lower().startswith("already trained today")
         )
-        it.title = (
-            f"Complete today's {letter} session ({count} lifts{m.group('tail')})"
-            f"{m.group('end')}"
-        )[:200]
+        if not progress and not stale_closed:
+            continue
+        has_counts = (workout or {}).get("prescribed_match_count") is not None or (
+            workout or {}
+        ).get("prescribed_planned_count") is not None
+        # A header with no leaves and no planner counts stays as written.
+        # Rest-day and empty-plan fixtures are not an open session to recount.
+        if not lifts and not (workout or {}).get("already_trained_today") and not has_counts:
+            continue
+        voted, _count = session_header_from_lifts(
+            names, str((workout or {}).get("session_type") or "")
+        )
+        # Lift votes pick the letter. A title that already names Push/Pull/Legs
+        # is the fallback when the leaves do not vote (and "SESSION" is not a letter).
+        letter = str(voted or "").strip().lower()
+        if letter not in _PPL:
+            parsed = _SESSION_QUEST_RE.match(title)
+            from_title = ""
+            if parsed:
+                from_title = parsed.group("open") or parsed.group("done") or ""
+            letter = str(from_title or (workout or {}).get("session_type") or "").strip().lower()
+        matched, planned = session_quest_counts(workout, len(lifts))
+        done = bool((workout or {}).get("already_trained_today")) and not lifts
+        it.title = format_session_quest(letter, matched, planned, done=done)[:200]
 
 
 def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[PlannedGroup]:

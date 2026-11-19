@@ -371,6 +371,36 @@ def _expand_group_token(token: str) -> List[str]:
     return [mapped] if mapped else []
 
 
+def _names_side_delt_isolation(ex: dict) -> bool:
+    """Isolation (or untagged) lateral / side-delt names. Compounds stay put."""
+    if str(ex.get("movement") or "").strip().lower() == "compound":
+        return False
+    name = str(ex.get("name") or "").lower().replace("_", " ").replace("-", " ")
+    return any(
+        bit in name
+        for bit in (
+            "lateral raise",
+            "lateral raises",
+            "side raise",
+            "side lateral",
+            "side laterals",
+            "side delt",
+            "lateral delt",
+        )
+    )
+
+
+def _credit_side_delt(
+    ex: dict, primary: List[str], secondary: List[str]
+) -> Tuple[List[str], List[str]]:
+    """A lateral or side-delt raise credits side delts, even if tagged shoulders."""
+    if not _names_side_delt_isolation(ex):
+        return primary, secondary
+    primary = ["side_delts"] + [g for g in primary if g not in ("side_delts", "front_delts")]
+    secondary = [g for g in secondary if g not in primary and g != "front_delts"]
+    return primary, secondary
+
+
 def volume_groups(ex: Optional[dict]) -> Tuple[List[str], List[str]]:
     """Primary and secondary volume groups for a catalog row.
 
@@ -395,7 +425,7 @@ def volume_groups(ex: Optional[dict]) -> Tuple[List[str], List[str]]:
             for group in _expand_group_token(_token(raw)):
                 if group not in primary and group not in secondary:
                     secondary.append(group)
-        return primary, secondary
+        return _credit_side_delt(ex, primary, secondary)
     primary = _groups_from_tags(ex.get("primary_muscles") or [], name=name, movement=movement)
     secondary = [
         g
@@ -404,7 +434,7 @@ def volume_groups(ex: Optional[dict]) -> Tuple[List[str], List[str]]:
         )
         if g not in primary
     ]
-    return primary, secondary
+    return _credit_side_delt(ex, primary, secondary)
 
 
 def credit_proper_sets(
@@ -641,6 +671,10 @@ def _catalog_index(catalog: Optional[dict]) -> Tuple[Dict[str, dict], Dict[str, 
         name = _norm_name(str(raw.get("name") or ""))
         if name:
             by_name.setdefault(name, raw)
+        for alias in raw.get("aliases") or []:
+            key = _norm_name(str(alias))
+            if key:
+                by_name.setdefault(key, raw)
     return by_id, by_name
 
 
@@ -652,7 +686,21 @@ _NAME_FALLBACKS: Tuple[Tuple[Tuple[str, ...], str, Tuple[str, ...], Tuple[str, .
     (("calf",), "isolation", ("calves",), ()),
     (("leg curl", "hamstring curl"), "isolation", ("hamstrings",), ()),
     (("pushdown", "pulldown rope", "tricep", "skull"), "isolation", ("triceps",), ()),
-    (("lateral raise", "side raise"), "isolation", ("side_delts",), ()),
+    (
+        (
+            "lateral raise",
+            "lateral raises",
+            "side raise",
+            "side lateral",
+            "side laterals",
+            "side delt",
+            "side-delt",
+            "lateral delt",
+        ),
+        "isolation",
+        ("side_delts",),
+        (),
+    ),
     (("face pull", "rear delt", "reverse fly"), "isolation", ("rear_delts",), ()),
     (("curl",), "isolation", ("biceps",), ()),
     (("incline press", "incline bench"), "compound", ("chest", "front_delts"), ("triceps",)),
