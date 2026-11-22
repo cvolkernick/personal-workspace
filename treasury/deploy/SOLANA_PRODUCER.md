@@ -27,7 +27,9 @@ Each run:
    serves this refresh. Offline: no Coinbase CLI, no YNAB/Plaid/Sheet/RPC
    calls, no push, no orders. It also rewrites `fund_manager_latest.json`
    from the RH snapshot, as the braiins / coinbase-price / rh refresh scripts
-   already do.
+   already do. Quotes use the shared read-only env in
+   `treasury/deploy/BROKER_QUOTE_ENV.md`. An empty quote map carries the last
+   marks forward (`price_stale`) and does not replace a priced snapshot.
 
 The Mac job ran hourly (`StartInterval` 3600). 15min is well under the
 FCC 6h stale window and costs 3 RPC calls + 1 price call per run.

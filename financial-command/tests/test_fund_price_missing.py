@@ -14,10 +14,10 @@ class TestFundPriceMissingCopy(unittest.TestCase):
         index = (FCC / "index.html").read_text(encoding="utf-8")
         position = (FCC / "position.html").read_text(encoding="utf-8")
         bias = (FCC / "bias-spectrum.html").read_text(encoding="utf-8")
-        self.assertIn(
-            'p.market_value != null ? money(p.market_value) : "price missing"',
-            index,
-        )
+        self.assertIn(': "price missing"', index)
+        self.assertIn("Last marks carried forward. Not valued at cost.", index)
+        self.assertIn("Stale as of ", index)
+        self.assertIn("stale as of ", index)
         self.assertIn("Sleeve weights price missing. Not valued at cost.", index)
         self.assertIn('fmHealthLabel = "price missing"', index)
         self.assertIn("price missing", position)

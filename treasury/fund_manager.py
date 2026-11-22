@@ -455,6 +455,7 @@ def fetch_snapshot_quotes(
     snap = rh_snapshot if isinstance(rh_snapshot, dict) else {}
     if client is None and os.environ.get("PYTEST_CURRENT_TEST"):
         return {}
+    apply_broker_quote_env()
     try:
         from treasury.fund_manager_broker import (
             BrokerUnavailable,
@@ -841,8 +842,190 @@ def analyze_agentic_book(
     }
 
 
+# Same three variables as fund-manager-bp-poll's broker drop-in. Writers use
+# them for get_quotes only. Applying the file does not call the order gate.
+QUOTE_ENV_KEYS = ("FM_BROKER_ADAPTER", "FM_BROKER_CLIENT", "FM_BROKER_GROK_BIN")
+QUOTE_ENV_PATH = ROOT / "treasury" / "deploy" / "fm-broker-quote.env"
+
+
+def apply_broker_quote_env(path: Optional[Path] = None) -> None:
+    """Set unset read-only quote vars from the shared env file.
+
+    No-op under pytest, and no-op when a variable is already set. Does not
+    place, queue, or cancel an order.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    env_path = Path(path) if path is not None else QUOTE_ENV_PATH
+    if not env_path.is_file():
+        return
+    found: Dict[str, str] = {}
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        raw = line.strip()
+        if not raw or raw.startswith("#") or "=" not in raw:
+            continue
+        key, _, val = raw.partition("=")
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
+        if key in QUOTE_ENV_KEYS and key not in found:
+            found[key] = val.strip().strip('"').strip("'")
+    for key in QUOTE_ENV_KEYS:
+        if os.environ.get(key):
+            continue
+        if found.get(key):
+            os.environ[key] = found[key]
+
+
+def _analysis_of(snapshot: Any) -> Dict[str, Any]:
+    if not isinstance(snapshot, dict):
+        return {}
+    analysis = snapshot.get("analysis")
+    if isinstance(analysis, dict) and (
+        "positions" in analysis or "valuation" in analysis or "price_stale" in analysis
+    ):
+        return analysis
+    if "positions" in snapshot:
+        return snapshot
+    return {}
+
+
+def _prior_quote_time(snapshot: Dict[str, Any], analysis: Dict[str, Any], row: Dict[str, Any]) -> str:
+    """When the mark was last a real quote, not when a stale copy was rewritten."""
+    for candidate in (
+        row.get("price_as_of"),
+        analysis.get("price_as_of") if analysis.get("price_stale") else None,
+        snapshot.get("price_as_of") if snapshot.get("price_stale") else None,
+        analysis.get("as_of"),
+        snapshot.get("as_of"),
+    ):
+        if candidate not in (None, ""):
+            return str(candidate)
+    return ""
+
+
+def prior_mark_table(snapshot: Any) -> Dict[str, Dict[str, Any]]:
+    """Symbol → last market mark. Cost basis is never a mark."""
+    if not isinstance(snapshot, dict):
+        return {}
+    analysis = _analysis_of(snapshot)
+    out: Dict[str, Dict[str, Any]] = {}
+    for row in analysis.get("positions") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("valuation") == "cost_basis_estimate":
+            continue
+        sym = str(row.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        px = _positive(row.get("market_price"))
+        if px is None:
+            qty = _f(row.get("quantity"))
+            mv = _positive(row.get("market_value"))
+            if qty > 0 and mv is not None and row.get("valuation") != "cost_basis_estimate":
+                px = mv / qty
+        if px is None:
+            continue
+        out[sym] = {
+            "price": px,
+            "price_as_of": _prior_quote_time(snapshot, analysis, row),
+        }
+    return out
+
+
+def snapshot_has_market_marks(result: Any) -> bool:
+    """True when a held position has a market mark. Cost basis does not count."""
+    analysis = _analysis_of(result)
+    if analysis.get("valuation") == "cost_basis_estimate":
+        return False
+    held = [
+        p
+        for p in (analysis.get("positions") or [])
+        if isinstance(p, dict) and _f(p.get("quantity")) > 0
+    ]
+    if not held:
+        return False
+    for row in held:
+        if row.get("valuation") == "cost_basis_estimate":
+            continue
+        if _positive(row.get("market_value")) is None and _positive(row.get("market_price")) is None:
+            continue
+        return True
+    return False
+
+
+def carry_forward_marks(
+    quotes: Optional[Dict[str, float]],
+    prior: Any,
+) -> Tuple[Dict[str, float], Dict[str, Dict[str, Any]]]:
+    """When the quote map is empty, fill it from the prior snapshot's marks.
+
+    A partial quote map is left alone. Cost basis is not read.
+    """
+    base = {str(k).strip().upper(): float(v) for k, v in (quotes or {}).items() if _positive(v) is not None}
+    if base:
+        return base, {}
+    table = prior_mark_table(prior)
+    carried: Dict[str, Dict[str, Any]] = {}
+    for sym, mark in table.items():
+        carried[sym] = mark
+        base[sym] = float(mark["price"])
+    return base, carried
+
+
+def _stamp_carried_marks(analysis: Dict[str, Any], carried: Dict[str, Dict[str, Any]]) -> None:
+    if not carried or not isinstance(analysis, dict):
+        return
+    stamped = False
+    times: List[str] = []
+    for row in analysis.get("positions") or []:
+        if not isinstance(row, dict):
+            continue
+        sym = str(row.get("symbol") or "").strip().upper()
+        mark = carried.get(sym)
+        if not mark or row.get("market_value") in (None, ""):
+            continue
+        if row.get("valuation") == "cost_basis_estimate":
+            continue
+        row["price_stale"] = True
+        row["price_as_of"] = mark.get("price_as_of") or ""
+        row["valuation"] = "carried_mark"
+        stamped = True
+        if row["price_as_of"]:
+            times.append(str(row["price_as_of"]))
+    if not stamped:
+        return
+    analysis["price_stale"] = True
+    analysis["price_as_of"] = min(times) if times else ""
+    held = [
+        p
+        for p in (analysis.get("positions") or [])
+        if isinstance(p, dict) and _f(p.get("quantity")) > 0
+    ]
+    if held and all(p.get("valuation") == "carried_mark" for p in held if p.get("market_value") not in (None, "")):
+        if not analysis.get("unpriced_symbols"):
+            analysis["valuation"] = "carried_mark"
+    note = analysis.get("notes") or ""
+    extra = " Last marks carried forward from the prior priced snapshot (price_stale); cost basis is not a price."
+    if extra.strip() not in note:
+        analysis["notes"] = (note + extra).strip()
+
+
 def write_fund_manager_snapshot(result: Dict[str, Any], path: Optional[Path] = None) -> Path:
+    """Write the snapshot. A priced file is never replaced by an unpriced one."""
     out = path or FM_SNAPSHOT
+    if out.is_file():
+        prior = load_json(out)
+        if snapshot_has_market_marks(prior) and not snapshot_has_market_marks(result):
+            print(
+                "fund_manager snapshot kept prior marks "
+                "(refusing unpriced overwrite; cost basis is not a price)"
+            )
+            return out
     save_json(out, result)
     return out
 
@@ -1311,15 +1494,28 @@ def evaluate_fund_manager(
     quotes: Optional[Dict[str, float]] = None,
     quote_client: Any = None,
     decision_limit: int = 20,
+    prior_snapshot: Any = None,
+    carry_marks: Optional[bool] = None,
 ) -> Dict[str, Any]:
     policy = policy or load_fund_policy()
     if rh_snapshot is None:
         rh_snapshot = load_json(SNAPSHOTS_DIR / "robinhood_latest.json") or {}
     # bp-poll writes this snapshot twice (rules review, then run_treasury).
-    # Both go through here. Quotes are read-only; a miss stays unpriced.
+    # Both go through here. Quotes are read-only. An empty quote map carries
+    # the prior snapshot's marks forward instead of wiping them.
     if quotes is None:
         quotes = fetch_snapshot_quotes(rh_snapshot, client=quote_client)
+    if carry_marks is None:
+        carry_marks = not bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    if prior_snapshot is not None:
+        carry_marks = True
+    carried: Dict[str, Dict[str, Any]] = {}
+    if carry_marks:
+        if prior_snapshot is None:
+            prior_snapshot = load_json(FM_SNAPSHOT) if FM_SNAPSHOT.is_file() else None
+        quotes, carried = carry_forward_marks(quotes, prior_snapshot)
     analysis = analyze_agentic_book(rh_snapshot, policy, quotes=quotes or None)
+    _stamp_carried_marks(analysis, carried)
     cfg = load_config()
     agentic_acct = (cfg.get("robinhood") or {}).get("agentic_account_number")
     decisions = load_decision_log(limit=decision_limit)

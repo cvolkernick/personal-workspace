@@ -121,10 +121,13 @@ def main(argv: list[str] | None = None) -> int:
     fa = (fm.get("analysis") or {}) if isinstance(fm, dict) else {}
     if fa.get("ok"):
         deployed = fa.get("weights_of_deployed") or {}
+        stale = ""
+        if fa.get("price_stale"):
+            stale = f" stale as of {fa.get('price_as_of') or ''}"
         print(
             f"  fund_manager nav=${fa.get('nav_usd')} bp=${fa.get('buying_power_usd')} "
             f"deployed=BTC {shown_weight(deployed.get('btc_digital_credit'))} "
-            f"stocks {shown_weight(deployed.get('stocks_growth'))}"
+            f"stocks {shown_weight(deployed.get('stocks_growth'))}{stale}"
         )
     return 0
 

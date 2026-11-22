@@ -11,6 +11,7 @@ User=prism-agent
 Group=prism-agent
 WorkingDirectory=/home/prism-agent/personal-workspace
 ExecStart=/home/prism-agent/personal-workspace/treasury/coinbase_price_refresh.sh
+EnvironmentFile=-/home/prism-agent/personal-workspace/treasury/deploy/fm-broker-quote.env
 Environment=HOME=/home/prism-agent
 Environment=FCC_HOST_TAG=prism
 Environment=TREASURY_SKIP_PUSH_PI=1
