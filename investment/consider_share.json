@@ -5,7 +5,7 @@
   "unit": "new_money_consider_share_pct",
   "sum_to": 100,
   "basis": "percent_of_stocks_growth_sleeve",
-  "basis_note": "Pins are percent of the stocks_growth sleeve and sum to 100. Chris's 2026-11-17 wording was whole-fund (TSLA 20 / SPCX 20 / AI defense 10 / energy 10 = 60, the stocks sleeve of the whole fund). whole_fund_pct records that wording beside the sleeve-basis pins. Not a forced rebalance and not a sell.",
+  "basis_note": "Pins are percent of the stocks_growth sleeve and sum to 100. Chris's 2026-11-17 wording was whole-fund (TSLA 20 / SPCX 20 / AI defense 10 / energy 10 = 60, the stocks sleeve of the whole fund). whole_fund_pct records that wording beside the sleeve-basis pins. Not a forced rebalance and not a sell. The 40 sleeve is Sound Money & Digital Credit (BTC + digital credit 35 + GLDM 5). Box-local commit bc0bb821 is superseded by these 2026-11-17 pins and is not restored.",
   "not_a_nav_target": false,
   "not_a_sleeve_target": false,
   "not_an_order": false,
@@ -87,5 +87,30 @@
     "single_symbol_max_auto": 2.0,
     "total_abs_max_auto": 5.0
   },
-  "loop_adjustments": {}
+  "loop_adjustments": {},
+  "sound_money": {
+    "display_name": "Sound Money & Digital Credit",
+    "sleeve_key": "btc_digital_credit",
+    "sleeve_whole_fund_pct": 40,
+    "btc_digital_credit_whole_fund_pct": 35,
+    "gldm_whole_fund_pct": 5,
+    "stocks_whole_fund_pct": 60,
+    "whole_fund_pct": {
+      "STRC": 8.75,
+      "SATA": 8.75,
+      "STRK": 5.25,
+      "SATS": 3.5,
+      "IBIT": 8.75,
+      "GLDM": 5
+    },
+    "gldm": {
+      "symbol": "GLDM",
+      "buy_only": true,
+      "new_deposits_only": true,
+      "requires_per_buy_approval": true,
+      "auto_execute": false,
+      "never_sell": true
+    },
+    "notes": "Chris 2026-11-21 7:52 PM ET. Keeps 60/40. GLDM is inside the 40. Stock pins above are unchanged (stocks-sleeve basis, sum 100). bc0bb821 (whole-fund TSLA 20 / SPCX 20 / AI defense 10 / energy 10) is the stocks sleeve and is superseded by the 2026-11-17 pins; do not restore it. GLDM buys are pending approval only."
+  }
 }

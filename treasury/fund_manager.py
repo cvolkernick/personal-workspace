@@ -726,13 +726,13 @@ def analyze_agentic_book(
         hints.append("Agentic book empty or still settling — wait for buying power.")
     elif deployed <= 0 and (cash > 0 or bp > 0):
         hints.append(
-            f"All cash (~${max(cash, bp):.2f}). Deploy toward ~{tgt_btc:.0%} BTC-complex / "
+            f"All cash (~${max(cash, bp):.2f}). Deploy toward ~{tgt_btc:.0%} Sound Money & Digital Credit / "
             f"~{tgt_stocks:.0%} stocks using core allowlist at manager discretion."
         )
     else:
         if dep_btc is not None and dep_btc < tgt_btc - band:
             hints.append(
-                f"BTC-complex underweight vs {tgt_btc:.0%} of deployed "
+                f"Sound Money & Digital Credit underweight vs {tgt_btc:.0%} of deployed "
                 f"(at {dep_btc:.0%}) — favor MSTR/BITA/miners/etc."
             )
         if dep_stocks is not None and dep_stocks < tgt_stocks - band:
@@ -940,12 +940,12 @@ def format_decision_github_body(entry: Dict[str, Any]) -> str:
     if wb or wa or wd:
         lines.append(
             "**weights_before:** "
-            f"BTC-complex {_one(wb, 'btc_digital_credit', prefer_display=True)} · "
+            f"Sound Money & Digital Credit {_one(wb, 'btc_digital_credit', prefer_display=True)} · "
             f"stocks {_one(wb, 'stocks_growth', prefer_display=True)}"
         )
         lines.append(
             "**weights_after:** "
-            f"BTC-complex {_one(wa, 'btc_digital_credit', prefer_display=False)} · "
+            f"Sound Money & Digital Credit {_one(wa, 'btc_digital_credit', prefer_display=False)} · "
             f"stocks {_one(wa, 'stocks_growth', prefer_display=False)}"
         )
     if rat.get("why_now"):
@@ -1270,7 +1270,7 @@ def _append_journal_markdown(entry: Dict[str, Any]) -> None:
             return shown_weight(src.get(key))
 
         lines.append(
-            f"**Weights before (deployed):** BTC-complex {_jw('btc_digital_credit')} · "
+            f"**Weights before (deployed):** Sound Money & Digital Credit {_jw('btc_digital_credit')} · "
             f"Stocks {_jw('stocks_growth')}\n"
         )
     if rat.get("why_now"):
@@ -1444,13 +1444,13 @@ def rules_based_review(
         if dust_capital:
             summary = (
                 f"Rules HOLD: deployed mix in ±{band:.0%} band "
-                f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); "
+                f"(Sound Money & Digital Credit {btc:.0%}, stocks {stocks:.0%}); "
                 f"dust cash/BP ${cash:.2f}/${bp:.2f} < min_trade ${min_trade:.2f} (not deployable)"
             )
         else:
             summary = (
                 f"Rules HOLD: deployed mix in ±{band:.0%} band "
-                f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); cash/BP ${cash:.2f}/${bp:.2f} zero"
+                f"(Sound Money & Digital Credit {btc:.0%}, stocks {stocks:.0%}); cash/BP ${cash:.2f}/${bp:.2f} zero"
             )
         need_llm = False
     elif idle_capital and no_deployed:
@@ -1478,7 +1478,7 @@ def rules_based_review(
         reason = "drift_no_cash" if (not in_band and btc is not None) else "no_deployable_cash"
         if btc is not None and stocks is not None:
             summary = (
-                f"Rules HOLD ({reason}): BTC-complex {btc:.0%} / stocks {stocks:.0%} "
+                f"Rules HOLD ({reason}): Sound Money & Digital Credit {btc:.0%} / stocks {stocks:.0%} "
                 f"(target {_f(targets.get('btc_digital_credit_pct'), 0.4):.0%} ±{band:.0%}); "
                 f"deployable ${deployable:.2f} < min_trade ${min_trade:.2f}. "
                 "No sells to rebalance — restored with new cash only."

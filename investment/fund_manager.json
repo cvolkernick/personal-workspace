@@ -176,7 +176,26 @@
     "stocks_growth_pct": 0.6,
     "band_pct": 0.05,
     "cash_is_unallocated": true,
-    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) — not MSTR-only by habit, not 40% all-credit.",
+    "notes": "Modernized 60/40. The 40 is Sound Money & Digital Credit: BTC + digital credit 35 and GLDM 5, inside the 40. Stocks stay 60. Cash counts as unallocated until deployed. Within the BTC + digital credit 35, new-money fractions stay STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25 (fold into IBIT). GLDM is 5/40 = 12.5% of new sleeve cash, buy-only from new deposits, pending approval only.",
+    "sound_money_display_name": "Sound Money & Digital Credit",
+    "whole_fund_targets_2026_11_21": {
+      "TSLA": 20,
+      "SPCX": 20,
+      "PLTR": 5,
+      "CRWD": 2.5,
+      "S": 2.5,
+      "CCJ": 4,
+      "GEV": 2,
+      "VRT": 2,
+      "OKLO": 1,
+      "MARA": 1,
+      "STRC": 8.75,
+      "SATA": 8.75,
+      "STRK": 5.25,
+      "SATS": 3.5,
+      "IBIT": 8.75,
+      "GLDM": 5
+    },
     "symbol_targets": {
       "bias_pin_sot": "investment/consider_share.json",
       "pins": {
@@ -211,7 +230,27 @@
   },
   "sleeves": {
     "btc_digital_credit": {
+      "display_name": "Sound Money & Digital Credit",
       "target_pct": 0.4,
+      "composition": {
+        "sleeve_whole_fund_pct": 40,
+        "btc_digital_credit_whole_fund_pct": 35,
+        "gldm_whole_fund_pct": 5,
+        "stocks_growth_whole_fund_pct": 60
+      },
+      "gldm": {
+        "symbol": "GLDM",
+        "whole_fund_pct": 5,
+        "sleeve_fraction_of_new_cash": 0.125,
+        "buy_only": true,
+        "new_deposits_only": true,
+        "requires_per_buy_approval": true,
+        "auto_execute": false,
+        "never_sell": true,
+        "never_rebalance": true,
+        "on_symbol_allowlist": false,
+        "notes": "Chris 2026-11-21. GLDM is inside the 40, not a third sleeve. Buy-only from new deposits, pending-approval path only. Every buy needs Chris's per-buy yes. Never auto-execute. Not on execution.broker_adapter.symbol_allowlist. No sells, no rebalance."
+      },
       "symbols": [
         "BTC",
         "MSTR",
@@ -289,10 +328,10 @@
             "gold_etf",
             "gold_miners"
           ],
-          "notes": "Owner 2026-09-07: gold as sound-money sleeve, lower priority than Bitcoin positions. Vehicle TBD (gold ETF and/or gold miners) — research-only until owner calls a buy. No auto-buy. No Bias consider-share stamp until buy called. Not RH Gold membership. Not a substitute for BTC / digital credit / miners."
+          "notes": "Chris 2026-11-21: GLDM is the gold vehicle and sits inside the Sound Money sleeve at 5 whole-fund points. Buy-only, new deposits only, pending approval, never auto-execute. IAU, GLD, PAXG, GDX, and SLV stay research-only. Not RH Gold membership. Not a substitute for BTC or digital credit."
         }
       },
-      "notes": "BTC complex = digital credit + miners/infra + optional sound-money metals. New-money weights (buy-only): STRC 25 / SATA 25 / STRK 15 / 35 floating (BTC/MSTR/ASST/BITA + miners MARA, RIOT, CLSK, WULF, IREN). Multi-miner diversification intentional. Gold sound-money (2026-09-07): below BTC priority; vehicle TBD; research-only until buy call. | 2026-11-17: MARA is not in this sleeve (moved to stocks_growth energy).",
+      "notes": "Sound Money & Digital Credit (sleeve key btc_digital_credit). Whole fund: BTC + digital credit 35 + GLDM 5 = 40, stocks 60. New-money fractions inside the 35 stay STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25; the planner reserves 12.5% of new sleeve cash for GLDM pending approval and applies those fractions to the rest. GLDM is buy-only from new deposits and never an auto order. IAU/GLD/PAXG/GDX/SLV stay research-only. | 2026-11-17: MARA is not in this sleeve (moved to stocks_growth energy).",
       "new_money_weights": {
         "STRC": 0.25,
         "SATA": 0.25,

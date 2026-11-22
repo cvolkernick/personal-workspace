@@ -28,7 +28,9 @@ from treasury import fund_manager_order_gate as gate  # noqa: E402
 # Monday 2026-10-26 11:00 ET. Inside the place window, not a holiday.
 AS_OF = "2026-10-26T14:00:00+00:00"
 NOW = "2026-10-26T15:00:00+00:00"
-EXPECTED = {"STRC": 1.90, "SATA": 1.90, "STRK": 1.14, "IBIT": 2.68}
+# Auto legs after the 12.5% GLDM pending reserve. SATS on $7.62 is under $1
+# and folds into IBIT. GLDM is not in this map.
+EXPECTED = {"STRC": 1.66, "SATA": 1.66, "STRK": 1.00, "IBIT": 2.35}
 STOCKS = {"TSLA", "SPCX"}
 
 
@@ -99,6 +101,7 @@ class OrderPathEndToEnd(unittest.TestCase):
                 "FM_RH_SNAPSHOT_PATH": str(self.snap_path),
                 "FM_BROKER_LEDGER_PATH": str(ledger),
                 "FM_E2E_LOG": str(log),
+                "FM_PENDING_APPROVALS_PATH": str(self.dir / "pending.json"),
             }
         )
         proc = subprocess.run(
@@ -129,7 +132,14 @@ class OrderPathEndToEnd(unittest.TestCase):
         self.assertEqual(set(legs), set(EXPECTED))
         for sym, amt in EXPECTED.items():
             self.assertAlmostEqual(legs[sym], amt, places=2, msg=sym)
-        self.assertAlmostEqual(sum(legs.values()), 7.62, places=2)
+        gldm = [
+            row for row in (out["plan"].get("pending_approvals") or [])
+            if row.get("symbol") == "GLDM"
+        ]
+        self.assertEqual(len(gldm), 1, out["plan"])
+        self.assertFalse(gldm[0].get("auto_execute"))
+        self.assertAlmostEqual(sum(legs.values()) + gldm[0]["notional_usd"], 7.62, places=2)
+        self.assertNotIn("GLDM", legs)
         self.assertNotIn("TSLA", legs)
         self.assertNotIn("SPCX", legs)
         self.assertNotIn("MSTR", legs)
