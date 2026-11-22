@@ -15,6 +15,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# shellcheck disable=SC1091
+source "${ROOT}/treasury/deploy/broker_quote_env.sh"
 LOG_DIR="${ROOT}/treasury/snapshots"
 mkdir -p "$LOG_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

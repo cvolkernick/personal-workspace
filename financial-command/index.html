@@ -2623,6 +2623,14 @@
         (p) => p && p.market_value == null && Number(p.quantity) > 0
       );
     }
+    function fmStaleNote(analysis) {
+      if (!analysis || analysis.price_stale !== true) return "";
+      const when = analysis.price_as_of || "";
+      return (
+        `<p class="hint">Stale as of ${escapeHtml(String(when))}. ` +
+        `Last marks carried forward. Not valued at cost.</p>`
+      );
+    }
     function fmPct(x, analysis) {
       if (x == null || !Number.isFinite(Number(x))) {
         return bookPriceMissing(analysis) ? "price missing" : "—";
@@ -3654,7 +3662,13 @@
           `<div class="val">${escapeHtml(fmHealthLabel)}</div>` +
           `<div class="hint" style="margin:0.25rem 0 0;font-size:0.72rem">NAV ${money(
             fmaEarly.nav_usd
-          )}</div></div>`,
+          )}</div>` +
+          (fmaEarly.price_stale
+            ? `<div class="hint" style="margin:0.15rem 0 0;font-size:0.72rem">stale as of ${escapeHtml(
+                String(fmaEarly.price_as_of || "")
+              )}</div>`
+            : "") +
+          `</div>`,
       ].join("");
 
       // Feeds: compact dots (expand bad labels)
@@ -4674,7 +4688,7 @@
               `<div class="alloc-legend">` +
               `<span><i class="sw stocks"></i>Stocks / growth ${pctLabel(stPct)} <span class="hint">tgt ${Math.round(tgtSt * 100)}%</span></span>` +
               `<span><i class="sw btc"></i>BTC &amp; digital credit ${pctLabel(btcPct)} <span class="hint">tgt ${Math.round(tgtBtc * 100)}%</span></span>` +
-              `</div></div>`,
+              `</div>${fmStaleNote(fma)}</div>`,
           ].join("")
         : `<p class="hint">No allocation yet</p>`;
 
@@ -4716,7 +4730,12 @@
                 `<tr><td><strong>${escapeHtml(p.symbol || "—")}</strong></td>` +
                 `<td><span class="sleeve-chip ${chip}">${escapeHtml(slabel)}</span></td>` +
                 `<td>${escapeHtml(String(p.quantity ?? "—"))}</td>` +
-                `<td>${p.market_value != null ? money(p.market_value) : "price missing"}</td></tr>`
+                `<td>${
+                  p.market_value != null
+                    ? money(p.market_value) +
+                      (p.price_stale ? ` <span class="hint">stale</span>` : "")
+                    : "price missing"
+                }</td></tr>`
               );
             })
             .join("") +
