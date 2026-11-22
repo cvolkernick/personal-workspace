@@ -14,6 +14,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# shellcheck disable=SC1091
+source "${ROOT}/treasury/deploy/broker_quote_env.sh"
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:${HOME}/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"
 LOG_DIR="${ROOT}/treasury/snapshots"
 mkdir -p "$LOG_DIR"

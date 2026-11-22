@@ -15,6 +15,7 @@ ExecStart=/usr/bin/python3 -m treasury.solana_sync --prism-copy
 # calls, no push, no orders. Same step the braiins/coinbase-price/rh refresh
 # scripts already run on prism.
 ExecStartPost=/usr/bin/python3 -m treasury.run_treasury --offline --skip-coinbase
+EnvironmentFile=-%h/personal-workspace/treasury/deploy/fm-broker-quote.env
 Environment=FCC_HOST_TAG=prism
 Environment=TREASURY_SKIP_PUSH_PI=1
 Environment=PYTHONUNBUFFERED=1
