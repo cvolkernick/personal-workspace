@@ -296,6 +296,18 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     btc_target = _d((data.get("targets") or {}).get("btc_digital_credit_pct"))
     if btc_target is None or not (0 < btc_target < 1):
         return None, "targets.btc_digital_credit_pct malformed"
+    gldm = btc.get("gldm") if isinstance(btc.get("gldm"), dict) else {}
+    gldm_symbol = str(gldm.get("symbol") or "").strip().upper()
+    gldm_frac = _d(gldm.get("sleeve_fraction_of_new_cash")) if gldm else ZERO
+    if gldm_symbol:
+        if gldm_frac is None or gldm_frac <= 0 or gldm_frac >= 1:
+            return None, "sleeves.btc_digital_credit.gldm.sleeve_fraction_of_new_cash malformed"
+        if gldm.get("auto_execute") is True:
+            return None, "GLDM auto_execute must not be true"
+        if gldm_symbol in allow:
+            return None, "GLDM must not be on the auto-execute symbol_allowlist"
+    else:
+        gldm_frac = ZERO
     blocked = ((data.get("guardrails") or {}).get("blocked_symbols")) or []
     stock_pins = load_stock_pins(p)
     cal, cal_err = _load_calendar(ba.get("market_calendar"))
@@ -337,6 +349,9 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
         "low_preference": ba.get("low_preference") if isinstance(ba.get("low_preference"), dict) else {},
         "client": str(ba.get("client") or "").strip(),
         "theme_buy_hold": _theme_buy_hold(data),
+        "gldm_symbol": gldm_symbol,
+        "gldm_new_cash_fraction": gldm_frac,
+        "sound_money_symbols": tuple(s for s in (gldm_symbol,) if s),
     }
     return cfg, ""
 
@@ -636,7 +651,7 @@ def book_values(
     """
     quotes = quotes or {}
     ag = _snapshot_agentic(snapshot) or {}
-    btc_set = set(cfg["fixed_weights"]) | set(cfg["floating"])
+    btc_set = set(cfg["fixed_weights"]) | set(cfg["floating"]) | set(cfg.get("sound_money_symbols") or ())
     out: Dict[str, Decimal] = {"btc": ZERO, "stocks": ZERO, "other": ZERO}
     for s in cfg["stocks"]:
         out["sym:" + s] = ZERO
@@ -1328,7 +1343,7 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             for s in stocks:
                 if proposed.get(s):
                     info["dropped"].append({"symbol": s, "notional_usd": float(proposed[s]), "status": S_SLEEVE_GATE,
-                                            "reason": f"BTC + digital credit sleeve {share:.1%} < {tgt:.0%}: no {'/'.join(stocks)} buys"})
+                                            "reason": f"Sound Money & Digital Credit sleeve {share:.1%} < {tgt:.0%}: no {'/'.join(stocks)} buys"})
             if prop_stock > 0:
                 repaired.append("sleeve_gate: stock legs redirected to the BTC sleeve")
         else:
@@ -1406,10 +1421,20 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             for s in stocks:
                 if abs(proposed.get(s, ZERO) - legs[s]) > tol:
                     repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${legs[s]:.2f} (50/50 stock rule)")
-        # BTC sleeve fixed legs
-        # fixed legs are always exactly their config weight of the BTC amount
-        # (live: STRC 25 / SATA 25 / STRK 15 / SATS 10);
-        # AI-proposed fixed amounts are ignored (a large mismatch is logged as a repair).
+        # Sound-money sleeve cash: GLDM is 5/40 of the sleeve (12.5% of this
+        # cash) and is a pending-approval buy, never an auto leg. The live
+        # new_money_weights still apply to the remaining 87.5%.
+        gldm_amt = ZERO
+        gldm_sym = str(cfg.get("gldm_symbol") or "")
+        gldm_frac = cfg.get("gldm_new_cash_fraction") or ZERO
+        if gldm_sym and gldm_frac > 0 and btc_amt > 0:
+            gldm_amt = _cents(btc_amt * gldm_frac)
+            if gldm_amt > btc_amt:
+                gldm_amt = _cents(btc_amt)
+            btc_amt = btc_amt - gldm_amt
+        # BTC + digital-credit fixed legs, as a fraction of the cash left
+        # after the GLDM reserve. Live weights stay STRC 25 / SATA 25 /
+        # STRK 15 / SATS 10. AI-proposed fixed amounts are ignored.
         fixed = {s: btc_amt * w for s, w in cfg["fixed_weights"].items()}
         if proposed:
             for s, t in fixed.items():
@@ -1460,7 +1485,27 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             if legs.get(s):
                 info["notes"].append(f"{s} has low preference until {cfg['low_preference'][s].get('until')} (AI chose ${legs[s]:.2f})")
 
-        legs = _finalize_legs(legs, run_total, cfg, info)
+        if gldm_amt > 0 and gldm_sym:
+            gldm_item = {
+                "symbol": gldm_sym,
+                "side": "buy",
+                "notional_usd": float(gldm_amt),
+                "theme": "sound_money_gldm",
+                "status": "pending_approval",
+                "by": "chris",
+                "auto_execute": False,
+                "reason": "GLDM buy requires Chris per-buy approval; new deposits only; not auto-executed",
+            }
+            info.setdefault("pending_approvals", [])
+            info["pending_approvals"].append(gldm_item)
+            info["notes"].append(
+                "GLDM buy staged for Chris per-buy approval; not auto-executed; no sell"
+            )
+            if persist:
+                stage_pending([gldm_item], pending_path, now)
+        # Keep the GLDM reserve out of the IBIT fold. The rest of the run
+        # still finalizes the auto legs only.
+        legs = _finalize_legs(legs, run_total - gldm_amt, cfg, info)
         pending_left = info.get("pending_approvals") or []
         if not legs and not pending_left:
             held_drop = any(

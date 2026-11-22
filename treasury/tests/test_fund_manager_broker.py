@@ -253,7 +253,7 @@ class TestAllowlist(Base):
         # the low-preference note (which fires only when the name is a leg) stays quiet.
         _, info = self.plan([buy("STRC", 2.5), buy("SATA", 2.5), buy("STRK", 1.5), buy("MSTR", 3.5)])
         self.assertNotIn("MSTR", self.legs(info))
-        self.assertEqual(self.legs(info)["IBIT"], 3.5)
+        self.assertEqual(self.legs(info)["IBIT"], 3.08)
         self.assertFalse(any("low preference" in n for n in info["notes"]))
         self.write_policy(honor_ai_floating=True)
         _, chosen = self.plan([buy("STRC", 2.5), buy("SATA", 2.5), buy("STRK", 1.5), buy("MSTR", 3.5)])
@@ -269,7 +269,7 @@ class TestSleeveGateAndWeights(Base):
     def test_exact_plan_is_planned(self):
         orders, info = self.plan(TEN)
         self.assertEqual(info["status"], "planned")
-        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
+        self.assertEqual(self.legs(info), {"STRC": 2.18, "SATA": 2.18, "STRK": 1.31, "IBIT": 3.08})
         self.assertTrue(all(o["run_id"] == info["run_id"] for o in orders))
 
     def test_stock_buy_under_40pct_dropped_and_redirected(self):
@@ -278,9 +278,10 @@ class TestSleeveGateAndWeights(Base):
         self.assertNotIn("TSLA", self.legs(info))
         self.assertEqual(info["dropped"][0]["status"], "not_submitted_sleeve_gate")
         legs = self.legs(info)
-        self.assertAlmostEqual(sum(legs.values()), 20.0, places=2)  # all settled cash, BTC sleeve only
-        self.assertAlmostEqual(legs["STRC"], 5.0, places=2)
-        self.assertAlmostEqual(legs["STRK"], 3.0, places=2)
+        gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(legs.values()) + gldm, 20.0, places=2)
+        self.assertAlmostEqual(legs["STRC"], 4.37, places=2)
+        self.assertAlmostEqual(legs["STRK"], 2.62, places=2)
 
     def test_over_40pct_stocks_get_rest_toward_50_50(self):
         # BTC 100 / invested 150; run 30 -> BTC target 0.4*180-100 < 0 -> all to stocks.
@@ -303,14 +304,14 @@ class TestSleeveGateAndWeights(Base):
         self.assertEqual(info["status"], "weights_repaired")
 
     def test_fixed_legs_exact_ai_amounts_within_tolerance_not_flagged(self):
-        _, info = self.plan([buy("STRC", 3.2), buy("SATA", 2.0), buy("STRK", 1.5), buy("IBIT", 3.3)])
+        _, info = self.plan([buy("STRC", 2.5), buy("SATA", 2.0), buy("STRK", 1.5), buy("IBIT", 3.0)])
         self.assertEqual(info["status"], "planned")
-        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
+        self.assertEqual(self.legs(info), {"STRC": 2.18, "SATA": 2.18, "STRK": 1.31, "IBIT": 3.08})
 
     def test_weights_outside_tolerance_repaired(self):
         _, info = self.plan([buy("STRC", 8.0), buy("IBIT", 2.0)])
         self.assertEqual(info["status"], "weights_repaired")
-        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
+        self.assertEqual(self.legs(info), {"STRC": 2.18, "SATA": 2.18, "STRK": 1.31, "IBIT": 3.08})
         self.assertTrue(info["repairs"])
 
     def test_ai_floating_names_are_ignored(self):
@@ -320,7 +321,7 @@ class TestSleeveGateAndWeights(Base):
         legs = self.legs(info)
         self.assertNotIn("RIOT", legs)
         self.assertNotIn("MARA", legs)
-        self.assertEqual(legs["IBIT"], 7.0)
+        self.assertEqual(legs["IBIT"], 6.14)
         self.assertIn("ignored", info["floating_source"])
         self.write_policy(honor_ai_floating=True)
         _, honoured = self.plan(
@@ -328,16 +329,18 @@ class TestSleeveGateAndWeights(Base):
             snapshot=snap(cash=20),
         )
         split = self.legs(honoured)
-        # floating 25% of $20 = $5 split RIOT/IBIT; SATS ($2, no quote) folds into IBIT
-        self.assertEqual(split["RIOT"], 2.5)
-        self.assertEqual(split["IBIT"], 4.5)
+        # floating 25% of the post-GLDM sleeve cash, split RIOT/IBIT.
+        # SATS has no quote and folds into IBIT. GLDM is pending, not a leg.
+        self.assertEqual(split["RIOT"], 2.18)
+        self.assertEqual(split["IBIT"], 3.96)
 
     def test_leg_under_one_dollar_folds_into_ibit(self):
         _, info = self.plan([buy("STRC", 1.5), buy("SATA", 1.5), buy("STRK", 0.9), buy("IBIT", 2.1)], snapshot=snap(cash=6))
         legs = self.legs(info)
         self.assertNotIn("STRK", legs)
-        self.assertAlmostEqual(legs["IBIT"], 3.0, places=2)
-        self.assertAlmostEqual(sum(legs.values()), 6.0, places=2)
+        self.assertAlmostEqual(legs["IBIT"], 2.63, places=2)
+        gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(legs.values()) + gldm, 6.0, places=2)
 
     def test_unplanned_order_rejected_by_adapter(self):
         c = FakeClient()
@@ -369,21 +372,21 @@ class TestSatsFixedLeg(Base):
 
     def test_sats_bought_when_quote_under_cap(self):
         c = FakeClient(quotes={"SATS": 90.0})
-        _, info = self.plan(TEN, client=c)
-        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "SATS": 1.0, "IBIT": 2.5})
+        _, info = self.plan(TEN, client=c, snapshot=snap(cash=16))
+        self.assertEqual(self.legs(info), {"STRC": 3.5, "SATA": 3.5, "STRK": 2.1, "SATS": 1.4, "IBIT": 3.5})
         self.assertIn(("get_quotes", ("SATS",)), c.calls)  # read-only price check
         self.assertFalse(any(n in ("place_order", "review_order") for n, *_ in c.calls))
         self.assertIn("SATS", info["price_checks"])
 
     def test_sats_quote_exactly_at_cap_is_bought(self):
-        _, info = self.plan([], client=FakeClient(quotes={"SATS": 95.0}))
-        self.assertAlmostEqual(self.legs(info)["SATS"], 1.0, places=2)
+        _, info = self.plan([], client=FakeClient(quotes={"SATS": 95.0}), snapshot=snap(cash=16))
+        self.assertAlmostEqual(self.legs(info)["SATS"], 1.4, places=2)
 
     def test_sats_quote_over_cap_folds_into_ibit(self):
-        _, info = self.plan(TEN, client=FakeClient(quotes={"SATS": 95.01}))
+        _, info = self.plan(TEN, client=FakeClient(quotes={"SATS": 95.01}), snapshot=snap(cash=16))
         legs = self.legs(info)
         self.assertNotIn("SATS", legs)
-        self.assertEqual(legs["IBIT"], 3.5)
+        self.assertEqual(legs["IBIT"], 4.9)
         self.assertIn("> $95", info["skipped_fixed"]["SATS"])
         self.assertTrue(any("SATS leg" in n and "folded into IBIT" in n for n in info["notes"]))
 
@@ -393,7 +396,8 @@ class TestSatsFixedLeg(Base):
             _, info = broker.plan_intents([], snapshot=snap(), policy_path=self.policy,
                                           ledger_path=self.dir / f"l{id(c)}.json", now=NOW, client=c)
             self.assertNotIn("SATS", self.legs(info))
-            self.assertAlmostEqual(sum(self.legs(info).values()), 10.0, places=2)
+            gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+            self.assertAlmostEqual(sum(self.legs(info).values()) + gldm, 10.0, places=2)
             self.assertIn("no live quote", info["skipped_fixed"]["SATS"])
 
     def test_blocked_sats_folds_without_quote_call(self):
@@ -408,7 +412,7 @@ class TestSatsFixedLeg(Base):
 
     def test_sats_leg_submits_end_to_end(self):
         c = FakeClient(quotes={"SATS": 90.0})
-        orders, info = self.plan([], client=c)
+        orders, info = self.plan([], client=c, snapshot=snap(cash=16))
         res = gate.gate_orders(orders, deployable_cash=1000.0, policy=gpol(), now=NOW)
         sats = [g for g in res.allowed if g.intent["symbol"] == "SATS"]
         self.assertEqual(len(sats), 1)
@@ -459,7 +463,7 @@ class TestDeterministicRunSize(Base):
     def test_ai_error_falls_back_to_ibit_and_still_runs(self):
         orders, info = self.plan("unreadable", ai_note="AI intents file unreadable")
         self.assertEqual(info["status"], "planned")
-        self.assertEqual(self.legs(info), {"STRC": 2.5, "SATA": 2.5, "STRK": 1.5, "IBIT": 3.5})
+        self.assertEqual(self.legs(info), {"STRC": 2.18, "SATA": 2.18, "STRK": 1.31, "IBIT": 3.08})
         self.assertIn("IBIT_fallback", info["floating_source"])
         self.assertIn("unreadable", info["floating_source"])
         self.assertEqual(orders[0], "unreadable")  # malformed payload still reaches the gate to be blocked
@@ -470,31 +474,36 @@ class TestDeterministicRunSize(Base):
     def test_empty_proposal_is_fully_invested(self):
         orders, info = self.plan([], snapshot=snap(cash=37.5))
         legs = self.legs(info)
-        self.assertAlmostEqual(sum(legs.values()), 37.5, places=2)
-        self.assertAlmostEqual(legs["IBIT"], 13.14, places=2)  # 35% + rounding cents
+        gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(legs.values()) + gldm, 37.5, places=2)
+        self.assertAlmostEqual(legs["IBIT"], 11.50, places=2)
         self.assertIn("AI proposed nothing", info["floating_source"])
         self.assertEqual(len(orders), 4)
 
     def test_nothing_valid_proposed_still_fully_invested(self):
         _, info = self.plan([buy("NVDA", 10.0), {"symbol": "TSLA", "side": "sell", "notional_usd": 3}])
-        self.assertAlmostEqual(sum(self.legs(info).values()), 10.0, places=2)
+        gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(self.legs(info).values()) + gldm, 10.0, places=2)
         self.assertIn("no valid floating", info["floating_source"])
 
     def test_ai_proposed_totals_ignored(self):
         _, small = self.plan(TEN, snapshot=snap(cash=40))  # AI proposes $10 of $40
         self.assertAlmostEqual(small["run_total_usd"], 40.0)
-        self.assertAlmostEqual(sum(self.legs(small).values()), 40.0, places=2)
+        gldm = sum(p["notional_usd"] for p in (small.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(self.legs(small).values()) + gldm, 40.0, places=2)
         self.assertTrue(any("ignored" in n for n in small["notes"]))
         big = [buy("STRC", 75), buy("SATA", 75), buy("STRK", 45), buy("IBIT", 105)]
         _, capped = broker.plan_intents(big, snapshot=snap(cash=12), policy_path=self.policy,
                                         ledger_path=self.dir / "l4.json", now=NOW)
-        self.assertAlmostEqual(sum(self.legs(capped).values()), 12.0, places=2)
+        gldm = sum(p["notional_usd"] for p in (capped.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(self.legs(capped).values()) + gldm, 12.0, places=2)
 
     def test_per_order_cap_spills_to_ibit_when_fully_invested(self):
         self.write_policy(max_daily_notional_usd=500)
         _, info = self.plan([buy("MARA", 1.0)], snapshot=snap(cash=500))
         legs = self.legs(info)
-        self.assertAlmostEqual(sum(legs.values()), 160.0, places=2)
+        gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(legs.values()) + gldm, 160.0, places=2)
         self.assertTrue(all(v <= 75 for v in legs.values()))
 
     def test_gate_cli_missing_intents_still_runs_planner(self):
@@ -815,7 +824,8 @@ class TestMarketCalendar(Base):
 class TestCaps(Base):
     def test_run_capped_at_settled_cash(self):
         _, info = self.plan([buy("STRC", 25), buy("SATA", 25), buy("STRK", 15), buy("IBIT", 35)], snapshot=snap(cash=40))
-        self.assertAlmostEqual(sum(self.legs(info).values()), 40.0, places=2)
+        gldm = sum(p["notional_usd"] for p in (info.get("pending_approvals") or []) if p.get("symbol") == "GLDM")
+        self.assertAlmostEqual(sum(self.legs(info).values()) + gldm, 40.0, places=2)
 
     def test_run_capped_at_160_and_daily_cap(self):
         big = [buy("STRC", 75), buy("SATA", 75), buy("STRK", 45), buy("IBIT", 105)]
@@ -1002,7 +1012,7 @@ class TestDuplicates(Base):
         self.assertEqual(c.placed, [])
 
     def test_matching_recent_fill_from_yesterday_skipped(self):
-        c = FakeClient(orders=[{"symbol": "STRC", "side": "buy", "state": "filled", "dollar_amount": 2.5, "order_id": "y",
+        c = FakeClient(orders=[{"symbol": "STRC", "side": "buy", "state": "filled", "dollar_amount": 2.18, "order_id": "y",
                                 "created_at": (NOW - timedelta(hours=20)).isoformat()}])
         outs, _ = self.run_all(TEN, c)
         self.assertEqual(outs[0]["status"], "skipped_duplicate_broker_order")
@@ -1090,7 +1100,7 @@ class TestDecisionPosting(Base):
         self.assertEqual([r["status"] for r in out["placed"]], ["placed"] * 4)
         entry = [e for e in seen if e.get("path") == "order_gate+broker_adapter"][0]
         self.assertEqual(entry["kind"], "deploy")
-        self.assertIn("placed 4 buy(s) $12.00", entry["summary"])
+        self.assertIn("placed 4 buy(s) $10.50", entry["summary"])
         a = [x for x in entry["actions"] if x["status"] == "placed"][0]
         for k in ("symbol", "notional_usd", "qty", "fill_price", "order_id"):
             self.assertIsNotNone(a[k], k)

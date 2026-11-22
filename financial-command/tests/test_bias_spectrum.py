@@ -47,7 +47,7 @@ class TestBiasSpectrumPage(unittest.TestCase):
         self.assertIn("Bias Spectrum · FCC", html)
         self.assertIn("New-money consider-share · FCC", html)
         self.assertIn('data-layout="two_lane"', html)
-        self.assertIn("BTC / DIGITAL CREDIT", html)
+        self.assertIn("SOUND MONEY &amp; DIGITAL CREDIT", html)
         self.assertIn("STOCKS / GROWTH", html)
         self.assertIn("new-money consider-share", html)
         self.assertIn("not current book weight", html)

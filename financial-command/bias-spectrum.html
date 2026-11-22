@@ -209,7 +209,7 @@
         Shared axis: <strong>0%</strong> left → largest chip right.
         Unit is <strong>new-money consider-share</strong> — standing bias when
         new funds are allocated — not current book weight.
-        <strong>Above</strong> = ~40% BTC / digital-credit sleeve budget.
+        <strong>Above</strong> = ~40% Sound Money &amp; Digital Credit sleeve budget.
         <strong>Below</strong> = ~60% stocks / growth (incl. energy opportunistic).
         Inside a sleeve: STRC/SATA preferred-core &gt; other core &gt; watchlist
         high=3 · med=2 · low=1. Held is a badge; book % is annotation.
@@ -221,11 +221,11 @@
       <div id="sleeve-legend"></div>
       <div class="axis-wrap">
         <div class="spectrum" id="spectrum" data-layout="two_lane">
-          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane bias spectrum: BTC/digital-credit new-money share above, stocks/growth new-money share below"></svg>
+          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane bias spectrum: Sound Money &amp; Digital Credit new-money share above, stocks/growth new-money share below"></svg>
         </div>
       </div>
       <div class="legend">
-        <span><i class="swatch btc"></i>BTC / digital credit (above, ~40%)</span>
+        <span><i class="swatch btc"></i>Sound Money &amp; Digital Credit (above, ~40%)</span>
         <span><i class="swatch stocks"></i>Stocks / growth (below, ~60%)</span>
         <span><i class="swatch held"></i>Currently held (badge)</span>
         <span><i class="swatch consider"></i>Unheld consider-set</span>
@@ -366,7 +366,7 @@
       svg.style.height = height + "px";
 
       let html = `
-        <text x="70" y="28" fill="#f2a900" font-size="12" font-weight="700" letter-spacing="0.06em">BTC / DIGITAL CREDIT · ~40%</text>
+        <text x="70" y="28" fill="#f2a900" font-size="12" font-weight="700" letter-spacing="0.06em">SOUND MONEY &amp; DIGITAL CREDIT · ~40%</text>
         <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~${maxPct}%</text>
         <text x="70" y="${height - 12}" fill="#7c9cff" font-size="12" font-weight="700" letter-spacing="0.06em">STOCKS / GROWTH · ~60%</text>
         <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
@@ -432,7 +432,7 @@
         `<span class="btc" style="width:${btcPct == null ? 0 : btcPct}%"></span>` +
         `<span class="stocks" style="width:${stPct == null ? 0 : stPct}%"></span>` +
         `</div>` +
-        `<p class="hint" style="margin:0">BTC/digital-credit ${sleeveText(w.btc_digital_credit)} · stocks/growth ${sleeveText(w.stocks_growth)}</p>`;
+        `<p class="hint" style="margin:0">Sound Money &amp; Digital Credit ${sleeveText(w.btc_digital_credit)} · stocks/growth ${sleeveText(w.stocks_growth)}</p>`;
     }
 
     function render(data) {

@@ -2345,7 +2345,7 @@
       </div>
       <div class="fm-hero">
         <div>
-          <div class="hint">60 / 40 allocation · stocks / BTC+</div>
+          <div class="hint">60 / 40 allocation · stocks / Sound Money &amp; Digital Credit</div>
           <div class="alloc-stack" id="fm-alloc"></div>
           <div id="fund-manager-metrics" style="margin-top:0.45rem"></div>
         </div>
@@ -4673,7 +4673,7 @@
       const tgtMarkPct = Math.round(tgtSt * 100); // stocks share from left (60/40)
       document.getElementById("fm-alloc").innerHTML = fma.ok
         ? [
-            `<div class="alloc-row"><div class="top"><span class="name">Deployed mix · stocks / BTC+</span>` +
+            `<div class="alloc-row"><div class="top"><span class="name">Deployed mix · stocks / Sound Money &amp; Digital Credit</span>` +
               `<span class="pct ${mixOk ? "in" : "out"}">${pctLabel(stPct)} / ${pctLabel(btcPct)} ` +
               `<span class="hint">target 60/40</span></span></div>` +
               `<div class="alloc-bar dual">` +
@@ -4681,13 +4681,13 @@
                 ? `<i class="fill stocks" style="width:${stW}%" title="Stocks / growth ${pctLabel(stPct)}"></i>`
                 : "") +
               (btcW > 0
-                ? `<i class="fill btc" style="width:${btcW}%" title="BTC &amp; digital credit ${pctLabel(btcPct)}"></i>`
+                ? `<i class="fill btc" style="width:${btcW}%" title="Sound Money &amp; Digital Credit ${pctLabel(btcPct)}"></i>`
                 : "") +
               `<span class="target-mark" style="left:${tgtMarkPct}%" title="Target split ${tgtMarkPct}/${100 - tgtMarkPct}"></span>` +
               `</div>` +
               `<div class="alloc-legend">` +
               `<span><i class="sw stocks"></i>Stocks / growth ${pctLabel(stPct)} <span class="hint">tgt ${Math.round(tgtSt * 100)}%</span></span>` +
-              `<span><i class="sw btc"></i>BTC &amp; digital credit ${pctLabel(btcPct)} <span class="hint">tgt ${Math.round(tgtBtc * 100)}%</span></span>` +
+              `<span><i class="sw btc"></i>Sound Money &amp; Digital Credit ${pctLabel(btcPct)} <span class="hint">tgt ${Math.round(tgtBtc * 100)}%</span></span>` +
               `</div>${fmStaleNote(fma)}</div>`,
           ].join("")
         : `<p class="hint">No allocation yet</p>`;
@@ -4722,7 +4722,7 @@
                     : "other";
               const slabel =
                 sl === "btc_digital_credit"
-                  ? "BTC+"
+                  ? "Sound Money & Digital Credit"
                   : sl === "stocks_growth"
                     ? "Stocks"
                     : sl;
@@ -4753,7 +4753,7 @@
             STOCKS_RAMP
           ) +
           pieCard(
-            "BTC & digital credit sleeve",
+            "Sound Money & Digital Credit sleeve",
             apos.filter((p) => p.sleeve === "btc_digital_credit"),
             BTC_RAMP
           );
