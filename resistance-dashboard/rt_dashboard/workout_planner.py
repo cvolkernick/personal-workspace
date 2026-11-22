@@ -283,6 +283,9 @@ NAME_ALIASES = {
     "face pulls": "face-pulls",
     "db curls": "db-curls",
     "hammer curls": "hammer-curls",
+    "preacher curl machine": "preacher-curl-machine",
+    "preacher curl": "preacher-curl-machine",
+    "machine preacher curl": "preacher-curl-machine",
     "leg press": "leg-press",
     "rdl": "rdl",
     "rdls": "rdl",
@@ -348,6 +351,8 @@ KNEE_DOMINANT_FAMILY = "knee_dominant"
 DEADLIFT_FAMILY = "deadlift"
 HAMSTRING_CURL_FAMILY = "hamstring_curl"
 CALF_FAMILY = "calf"
+SHRUG_FAMILY = "shrug"
+CURL_FAMILY = "curl"
 TRICEP_PUSHDOWN_FAMILY = "tricep_pushdown"
 TRICEP_PUSHDOWN_GROUP = "tricep-pushdowns"
 
@@ -384,6 +389,15 @@ PATTERN_FAMILY_BY_ID: Dict[str, str] = {
     "db-calf-raises": CALF_FAMILY,
     "tricep-pushdowns-rope": TRICEP_PUSHDOWN_FAMILY,
     "tricep-pushdowns-t-bar": TRICEP_PUSHDOWN_FAMILY,
+    "barbell-shrugs": SHRUG_FAMILY,
+    "smith-shrugs": SHRUG_FAMILY,
+    "db-shrugs": SHRUG_FAMILY,
+    "trap-bar-shrugs": SHRUG_FAMILY,
+    "machine-shrugs": SHRUG_FAMILY,
+    "db-curls": CURL_FAMILY,
+    "hammer-curls": CURL_FAMILY,
+    "preacher-curl-machine": CURL_FAMILY,
+    "fat-grip-curl": CURL_FAMILY,
 }
 
 PATTERN_FAMILY_SESSION_CAP = 1
@@ -1047,7 +1061,13 @@ def pattern_family(ex: Optional[dict]) -> Optional[str]:
     eid = str(ex.get("id") or "").strip()
     if eid in PATTERN_FAMILY_BY_ID:
         return PATTERN_FAMILY_BY_ID[eid]
+    name = _norm_name(str(ex.get("name") or ""))
+    eid_l = eid.lower()
+    if "shrug" in name or "shrug" in eid_l:
+        return SHRUG_FAMILY
     if str(ex.get("movement") or "").lower() != "compound":
+        if _is_arm_curl(name, eid_l):
+            return CURL_FAMILY
         return None
     name = _norm_name(str(ex.get("name") or ""))
     prim = {normalize_muscle(m) for m in (ex.get("primary_muscles") or [])}
@@ -1293,7 +1313,22 @@ def _is_abs_row(ex: Optional[dict]) -> bool:
     return bool(prim) and all(m == "abs" for m in prim)
 
 
-def _family_slot_taken(ex: dict, chosen: Sequence[dict]) -> bool:
+def _is_arm_curl(name: str, eid: str = "") -> bool:
+    """Biceps curls share one family. Leg and hamstring curls do not."""
+    blob = f"{name} {eid}".strip()
+    if "curl" not in blob:
+        return False
+    if any(tok in blob for tok in ("leg curl", "leg-curl", "hamstring", "lying-leg", "seated-leg")):
+        return False
+    return True
+
+
+def _family_slot_taken(
+    ex: dict,
+    chosen: Sequence[dict],
+    *,
+    allow_second_curl: bool = False,
+) -> bool:
     if primary_hinge_key(ex) and any(primary_hinge_key(c) for c in chosen):
         return True
     if _is_back_extension_row(ex) and any(_is_back_extension_row(c) for c in chosen):
@@ -1302,7 +1337,12 @@ def _family_slot_taken(ex: dict, chosen: Sequence[dict]) -> bool:
     if not fam:
         return False
     n = sum(1 for c in chosen if pattern_family(c) == fam)
-    return n >= PATTERN_FAMILY_SESSION_CAP
+    if fam == CURL_FAMILY and allow_second_curl:
+        cap = 2
+    else:
+        # Shrugs, hinges, and every other family stay at one per session.
+        cap = PATTERN_FAMILY_SESSION_CAP
+    return n >= cap
 
 
 GUARD_PASSTHROUGH_KEYS = (
@@ -2864,6 +2904,150 @@ def _resize_plan_row(row: dict, sets: int, sec_frac: float) -> None:
 
 def _sum_row_sets(rows: Sequence[dict]) -> int:
     return sum(_row_sets(row) for row in rows)
+
+
+def _progression_score(row: dict) -> float:
+    last = row.get("last") if isinstance(row.get("last"), dict) else {}
+    rx = row.get("prescription") if isinstance(row.get("prescription"), dict) else {}
+    try:
+        weight = float(last.get("weight_lbs") or rx.get("weight_lbs") or 0)
+        reps = float(last.get("reps") or rx.get("reps") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return weight * max(reps, 1.0)
+
+
+def _variant_keep_rank(row: dict, fam: str, last_family_ids: Optional[dict]) -> tuple:
+    """Higher rank stays. Rotation (not the last variant) wins, then progression."""
+    last_id = str((last_family_ids or {}).get(fam) or "")
+    eid = str(row.get("id") or "")
+    rotation = 0 if last_id and eid == last_id else 1
+    return (rotation, _progression_score(row), int(row.get("priority") or 0))
+
+
+def collapse_family_duplicates(
+    rows: Sequence[dict],
+    *,
+    bands: Optional[dict] = None,
+    done: Optional[dict] = None,
+    last_family_ids: Optional[dict] = None,
+    session_cap: int = 14,
+    sec_frac: float = 0.5,
+    biceps_under: bool = False,
+) -> List[dict]:
+    """One exercise per family. Curls may be two only while biceps are under target
+    and the session is within the set cap. Freed shrug sets go to an under-target
+    muscle other than traps.
+    """
+    kept: List[dict] = [row for row in rows if isinstance(row, dict)]
+    bands = bands or {}
+    logged = dict(done or {})
+    session_sets = _sum_row_sets(kept)
+    curl_cap = 2 if biceps_under and session_sets <= int(session_cap) else 1
+
+    def _cap(fam: str) -> int:
+        if fam == CURL_FAMILY:
+            return curl_cap
+        return 1
+
+    # Only shrug, curl, and hinge are collapsed here. Legs still pairs
+    # hack squat with leg press; that knee-family pairing is intentional.
+    groups: Dict[str, List[dict]] = {}
+    for row in kept:
+        fam = pattern_family(row)
+        if fam in (SHRUG_FAMILY, CURL_FAMILY):
+            groups.setdefault(fam, []).append(row)
+    hinges = [row for row in kept if primary_hinge_key(row)]
+    if len(hinges) > 1:
+        groups["__hinge__"] = hinges
+
+    for fam, group in list(groups.items()):
+        cap = 1 if fam == "__hinge__" else _cap(fam)
+        if fam == SHRUG_FAMILY:
+            for row in group:
+                extra = _row_sets(row) - 2
+                if extra > 0 and row in kept:
+                    _resize_plan_row(row, 2, sec_frac)
+        if len(group) <= cap:
+            continue
+        rank_fam = "" if fam == "__hinge__" else fam
+        ranked = sorted(
+            group,
+            key=lambda row: _variant_keep_rank(
+                row,
+                rank_fam or (primary_hinge_key(row) or ""),
+                last_family_ids,
+            ),
+            reverse=True,
+        )
+        for row in ranked[cap:]:
+            if row in kept:
+                kept.remove(row)
+    freed = _sum_row_sets(list(rows)) - _sum_row_sets(kept)
+    # Shrug sets we capped also count as freed only when a duplicate left.
+    # Recompute from the dropped rows so a capped single shrug's extra sets move too.
+    dropped_sets = 0
+    kept_ids = {id(row) for row in kept}
+    for row in rows:
+        if id(row) not in kept_ids:
+            dropped_sets += _row_sets(row)
+    shrug_trim = 0
+    for row in kept:
+        if pattern_family(row) == SHRUG_FAMILY and _row_sets(row) == 2:
+            original = next((src for src in rows if src is row), None)
+            if original is not None:
+                shrug_trim += max(0, _row_sets(original) - 2)
+    freed = dropped_sets + shrug_trim
+    if freed <= 0:
+        return kept
+
+    def _primaries(row: dict) -> List[str]:
+        return [normalize_muscle(m) for m in (row.get("primary_muscles") or [])]
+
+    def _under(muscle: str) -> bool:
+        band = bands.get(muscle) or {}
+        try:
+            lo = float(band.get("min") or 4)
+        except (TypeError, ValueError):
+            lo = 4.0
+        return float(logged.get(muscle) or 0) < lo
+
+    dropped_shrug = any(pattern_family(row) == SHRUG_FAMILY and row not in kept for row in rows)
+    session_sets = _sum_row_sets(kept)
+
+    def _eligible(row: dict) -> bool:
+        prim = _primaries(row)
+        if not prim or str(row.get("movement") or "") == "compound":
+            return False
+        if _row_sets(row) >= 3:
+            return False
+        if pattern_family(row) == SHRUG_FAMILY or primary_hinge_key(row):
+            return False
+        if dropped_shrug and all(m == "traps" for m in prim):
+            return False
+        return any(_under(m) for m in prim)
+
+    while freed > 0:
+        candidates = [row for row in kept if _eligible(row)]
+        if not candidates:
+            break
+        candidates.sort(
+            key=lambda row: (
+                -sum(1 for m in _primaries(row) if _under(m)),
+                _row_sets(row),
+            )
+        )
+        row = candidates[0]
+        room = min(3 - _row_sets(row), max(0, int(session_cap) - session_sets))
+        add = min(freed, room)
+        if add <= 0:
+            break
+        _resize_plan_row(row, _row_sets(row) + add, sec_frac)
+        freed -= add
+        session_sets += add
+        for muscle in _primaries(row):
+            logged[muscle] = float(logged.get(muscle) or 0) + add
+    return kept
 
 
 def _abs_week_hits(
@@ -5347,6 +5531,8 @@ def _generate_workout_plan_unguarded(
             if e.get("movement") == "compound" and not _family_slot_taken(e, chosen):
                 chosen.append(e)
                 break
+    biceps_min = float((bands.get("biceps") or {}).get("min") or 4)
+    biceps_under = float(done.get("biceps") or 0) < biceps_min
     for e in pool_scored:
         if len(chosen) >= n:
             break
@@ -5354,7 +5540,15 @@ def _generate_workout_plan_unguarded(
             continue
         if e["id"] in {c["id"] for c in chosen}:
             continue
-        if _family_slot_taken(e, chosen):
+        if _family_slot_taken(e, chosen, allow_second_curl=biceps_under):
+            continue
+        prim_now = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
+        if (
+            pattern_family(e) != SHRUG_FAMILY
+            and prim_now
+            and all(m == "traps" for m in prim_now)
+            and any(pattern_family(c) == SHRUG_FAMILY for c in chosen)
+        ):
             continue
         # Behind-the-neck stays out unless it was logged in the last 60 days.
         if (
@@ -5467,6 +5661,15 @@ def _generate_workout_plan_unguarded(
             if changed and catalog_is_assisted(ex):
                 _attach_assisted_plan(rx, ex, as_of=as_of, weighins=weighins)
         hard = int(rx["sets"] or default_hard)
+        if pattern_family(ex) == SHRUG_FAMILY:
+            # One shrug at 2 sets covers the 4/week traps target across two pull days.
+            hard = min(hard, 2)
+        if pattern_family(ex) == CURL_FAMILY:
+            prior_curls = sum(1 for row in plan_ex if pattern_family(row) == CURL_FAMILY)
+            if prior_curls >= 1 and (
+                not biceps_under or session_sets + hard > session_cap
+            ):
+                continue
         hard = _cap_sets_for_muscles(
             hard,
             ex.get("primary_muscles") or [],
@@ -6084,6 +6287,16 @@ def _generate_workout_plan_unguarded(
             message = f"{message} · {ramp.get('today_line') or ''}".strip()
     else:
         message = " · ".join(part for part in msg_parts if part)
+    if plan_ex:
+        plan_ex = collapse_family_duplicates(
+            plan_ex,
+            bands=bands,
+            done=done,
+            last_family_ids=last_family_ids,
+            session_cap=session_cap,
+            sec_frac=sec_frac,
+            biceps_under=biceps_under,
+        )
     message = ensure_workout_message(message, ramp)
     out = {
         "date": day,

@@ -54,14 +54,14 @@ class SmithBtnPress1129(unittest.TestCase):
         ids = [ex["id"] for ex in exercises]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(ids.count("smith-btn-press"), 1)
-        self.assertEqual(len(ids), 65)
+        self.assertEqual(len(ids), 66)
         btn = next(ex for ex in exercises if ex["id"] == "smith-btn-press")
         self.assertEqual(btn["name"], ROW["name"])
         self.assertEqual(btn["volume_primary"], ["side_delts"])
         self.assertEqual(btn["primary_muscles"], ["front_delts"])
         self.assertEqual(
             ids[-3:],
-            ["ab-crunch-machine", "cable-crunch", "back-extension-45"],
+            ["cable-crunch", "back-extension-45", "preacher-curl-machine"],
         )
         names = [ex["name"] for ex in exercises]
         self.assertEqual(names.count(ROW["name"]), 1)

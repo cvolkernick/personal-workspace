@@ -485,7 +485,7 @@ class PlannerCapUnchanged(unittest.TestCase):
             # Spent weekly volume no longer thins the day below 10 sets.
             # The first pull compound is the main, so it takes 4 sets.
             [("Assisted Pullups", 4), ("Machine Row", 2),
-             ("Back Extension Machine", 2), ("Face Pulls", 2), ("DB Curls", 2)],
+             ("Smith Shrugs", 2), ("Hammer Curls", 2), ("Face Pulls", 2)],
         )
         self.assertEqual(
             self._plan(low + cur, "push", "2026-10-15"),

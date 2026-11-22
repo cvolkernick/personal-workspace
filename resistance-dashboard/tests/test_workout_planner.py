@@ -1035,12 +1035,15 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         for ex in (
             {"id": "face-pulls", "name": "Face Pulls", "movement": "isolation", "primary_muscles": ["rear_delts"]},
-            {"id": "db-curls", "name": "DB Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
-            {"id": "hammer-curls", "name": "Hammer Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
             {"id": "rdl", "name": "RDL", "movement": "compound", "primary_muscles": ["hamstrings", "glutes"]},
             {"id": "back-extension", "name": "Back Extension Machine", "movement": "isolation", "primary_muscles": ["lower_back"]},
         ):
             self.assertIsNone(pattern_family(ex), ex["id"])
+        for ex in (
+            {"id": "db-curls", "name": "DB Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
+            {"id": "hammer-curls", "name": "Hammer Curls", "movement": "isolation", "primary_muscles": ["biceps"]},
+        ):
+            self.assertEqual(pattern_family(ex), "curl", ex["id"])
         self.assertEqual(
             pattern_family({"id": "seated-leg-curls", "name": "Seated Leg Curls", "movement": "isolation", "primary_muscles": ["hamstrings"]}),
             HAMSTRING_CURL_FAMILY,
