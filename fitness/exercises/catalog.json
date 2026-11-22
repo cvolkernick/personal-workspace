@@ -2011,6 +2011,45 @@
       "starting_load": false,
       "rep_band_locked": true,
       "notes": "Free-weight back extension on a 45-degree / hyperextension bench. Bodyweight, or a plate held at the chest. Same slot as the back extension machine, and only while the session hinge stays under 2 sets. No starting load until the first log."
+    },
+    {
+      "id": "preacher-curl-machine",
+      "name": "Preacher Curl Machine",
+      "aliases": [
+        "Preacher Curl",
+        "Machine Preacher Curl"
+      ],
+      "session_types": [
+        "pull"
+      ],
+      "primary_muscles": [
+        "biceps"
+      ],
+      "secondary_muscles": [
+        "brachialis",
+        "forearms"
+      ],
+      "volume_primary": [
+        "biceps"
+      ],
+      "volume_secondary": [],
+      "movement": "isolation",
+      "movement_pattern": "elbow_flexion",
+      "pattern_family": "curl",
+      "equipment": [
+        "machine"
+      ],
+      "default_sets": 3,
+      "default_reps": 12,
+      "rep_range": [
+        8,
+        15
+      ],
+      "priority": 6,
+      "available": true,
+      "starting_load": false,
+      "rep_band_locked": true,
+      "notes": "Selectorized preacher curl at Planet Fitness, 3853 Cleveland Ave. Elbow flexion / biceps curl. Primary biceps credit 1.0. Secondary brachialis/forearms follow the catalog convention (forearms are not their own weekly muscle). Double progression 8-15 at 1-2 RIR. Counts as a curl. No starting load until the first log."
     }
   ]
 }
