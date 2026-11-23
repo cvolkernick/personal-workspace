@@ -23,6 +23,13 @@ public class MainActivityTest {
     public void displaysLabel() {
         onView(withId(R.id.fixture_label))
                 .check(matches(isDisplayed()))
+                .check(matches(withText(R.string.fixture_label)));
+    }
+
+    @Test
+    public void verifiesMuseGrokDirectLineFixtureText() {
+        onView(withId(R.id.fixture_label))
+                .check(matches(isDisplayed()))
                 .check(matches(withText("Android Loop Fixture")));
     }
 }
