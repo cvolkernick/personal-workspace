@@ -232,18 +232,16 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
     """Chris 9/29 / Nakatoshi 10/10: STRC25/SATA25/STRK15/35 floating, buy-only."""
 
     def test_weights_sum_to_one(self):
+        # 2026-11-24 (Chris t7739s171722): 11/10 ruling inside the sleeve, no IBIT floating leg.
         p = load_fund_policy()
         w = (p["sleeves"]["btc_digital_credit"].get("new_money_weights") or {})
-        total = float(w["STRC"]) + float(w["SATA"]) + float(w["STRK"]) + float(w["SATS"]) + float(w["floating"])
+        want = {"STRC": 0.25, "SATA": 0.25, "STRK": 0.15, "SATS": 0.10, "MSTR": 0.09, "ASST": 0.08, "BITA": 0.08}
+        total = sum(float(w[k]) for k in want) + float(w["floating"])
         self.assertAlmostEqual(total, 1.0, places=9)
-        self.assertAlmostEqual(float(w["STRC"]), 0.25)
-        self.assertAlmostEqual(float(w["SATA"]), 0.25)
-        self.assertAlmostEqual(float(w["STRK"]), 0.15)
-        self.assertAlmostEqual(float(w["SATS"]), 0.10)  # Chris ruled 2026-10-28
-        self.assertAlmostEqual(float(w["floating"]), 0.25)
-        ruled = w["ruled_2026_10_28"]
-        for k in ("STRC", "SATA", "STRK", "SATS", "floating"):
-            self.assertAlmostEqual(float(w[k]), float(ruled[k]))
+        for k, v in want.items():
+            self.assertAlmostEqual(float(w[k]), v)
+        self.assertAlmostEqual(float(w["floating"]), 0.0)
+        self.assertNotIn("floating_default", w)
 
     def test_strk_core_not_watchlist_live_resumed(self):
         p = load_fund_policy()
@@ -276,18 +274,16 @@ class TestBtcDigitalCreditNewMoneyWeights(unittest.TestCase):
         sleeve = p["sleeves"]["btc_digital_credit"]
         intents = allocate_new_cash(sleeve, 100.0)
         by_sym = {i["symbol"]: i for i in intents}
-        self.assertEqual(set(by_sym), {"STRC", "SATA", "STRK", "SATS", "floating"})
+        self.assertEqual(set(by_sym), {"STRC", "SATA", "STRK", "SATS", "MSTR", "ASST", "BITA"})
         self.assertAlmostEqual(by_sym["STRC"]["amount_usd"], 25.0)
         self.assertAlmostEqual(by_sym["SATA"]["amount_usd"], 25.0)
         self.assertAlmostEqual(by_sym["STRK"]["amount_usd"], 15.0)
         self.assertAlmostEqual(by_sym["SATS"]["amount_usd"], 10.0)
-        self.assertAlmostEqual(by_sym["floating"]["amount_usd"], 25.0)
+        self.assertAlmostEqual(by_sym["MSTR"]["amount_usd"], 9.0)
+        self.assertNotIn("IBIT", by_sym)
         self.assertTrue(all(i["side"] == "buy" for i in intents))
         self.assertFalse(any(i.get("side") == "sell" for i in intents))
-        self.assertEqual(
-            by_sym["floating"]["universe"],
-            sleeve["new_money_weights"]["floating_universe"],
-        )
+        self.assertNotIn("floating", by_sym)  # floating weight is 0 since 2026-11-24
 
 
 
@@ -1241,8 +1237,9 @@ class TestSnapshotQuotes(unittest.TestCase):
         }
 
     def test_theme_buy_hold_stays_active(self):
+        # Cleared 2026-11-24 (Chris t7739s171722); the block stays for a future hold.
         hold = load_fund_policy()["theme_buy_hold"]
-        self.assertIs(hold["active"], True)
+        self.assertIs(hold["active"], False)
         self.assertEqual(hold["themes"], ["ai_defense", "energy"])
 
     def test_quote_success_fills_market_value_and_weights(self):

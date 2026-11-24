@@ -26,7 +26,14 @@ from treasury import fund_manager_broker as broker  # noqa: E402
 from treasury import fund_manager_order_gate as gate  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 15, 0, tzinfo=timezone.utc)  # Mon 11:00 ET
-REPO_POLICY = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+# Legacy-planner fixture: the policy as it stood on 2026-11-23 (BTC-first sleeve gate,
+# IBIT floating leg, theme/GLDM approval gating). The shipped policy moved to
+# targets.deploy underweight_first on 2026-11-24 (Chris, t7739s171722); see
+# TestUnderweightFirst for that path.
+REPO_POLICY = json.loads(
+    (ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json").read_text(encoding="utf-8")
+)
+SHIPPED_POLICY = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
 # Account id is read from the repo policy so no full account number lives in this test (last 4: 1752).
 ACCT = REPO_POLICY["account"]["account_number"]
 
@@ -199,40 +206,48 @@ class Base(unittest.TestCase):
 # ---------------------------------------------------------------- 1 allowlist
 class TestAllowlist(Base):
     def test_repo_config_allowlist_and_ibit_floating(self):
+        # Shipped policy (2026-11-24): underweight_first, no IBIT floating leg,
+        # GLDM auto-buys, no SATS price cap.
         cfg, err = broker.load_adapter_config()
         self.assertEqual(err, "")
-        self.assertTrue(cfg["live"])  # Chris resumed Agentic buys 2026-10-25 2:58 PM ET
+        self.assertTrue(cfg["live"])
         self.assertEqual(set(cfg["allowlist"]), {
             "STRC", "SATA", "STRK", "SATS", "MSTR", "ASST", "BITA", "IBIT",
             "MARA", "RIOT", "CLSK", "IREN", "WULF", "TSLA", "SPCX",
-            "PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO",
+            "PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO", "GLDM",
         })
         self.assertEqual({k: float(v) for k, v in cfg["fixed_weights"].items()},
-                         {"STRC": 0.25, "SATA": 0.25, "STRK": 0.15, "SATS": 0.10})
-        self.assertEqual(float(cfg["floating_weight"]), 0.25)
-        self.assertEqual({k: float(v) for k, v in cfg["price_caps"].items()}, {"SATS": 95.0})
-        self.assertEqual(cfg["floating"], ("IBIT", "MSTR", "ASST", "BITA", "RIOT", "CLSK", "WULF", "IREN"))
-        self.assertNotIn("MARA", cfg["floating"])
-        self.assertEqual(cfg["fold_into"], "IBIT")
-        self.assertFalse(cfg["honor_ai_floating"])
-        self.assertFalse(REPO_POLICY["execution"]["broker_adapter"]["honor_ai_floating"])
-        self.assertEqual(cfg["stocks"], ("TSLA", "SPCX", "PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO", "MARA"))
-        self.assertIn("MARA", cfg["theme_symbols"])
-        self.assertNotIn("TSLA", cfg["theme_symbols"])
-        btc = REPO_POLICY["sleeves"]["btc_digital_credit"]
-        self.assertIn("IBIT", btc["symbols"])
-        self.assertEqual(btc["new_money_weights"]["floating_default"], "IBIT")
-        self.assertNotIn("BTC", btc["new_money_weights"]["floating_universe"])
-        self.assertEqual(REPO_POLICY["execution"]["broker_adapter"]["low_preference"]["MSTR"]["until"], "2026-11-30")
+                         {"STRC": 0.25, "SATA": 0.25, "STRK": 0.15, "SATS": 0.10,
+                          "MSTR": 0.09, "ASST": 0.08, "BITA": 0.08})
+        self.assertEqual(float(cfg["floating_weight"]), 0.0)
+        self.assertEqual(cfg["price_caps"], {})
+        self.assertNotEqual(cfg["fold_into"], "IBIT")
+        self.assertTrue(cfg["gldm_auto_execute"])
+        self.assertFalse(cfg["theme_buy_hold"].get("active"))
+        dep = cfg["deploy"]
+        self.assertEqual(dep["mode"], "underweight_first")
+        pct = {n: float(sl["pct"]) for n, sl in dep["sleeves"].items()}
+        self.assertEqual(pct, {"btc_digital_credit": 35, "gldm": 5, "tsla": 20, "spcx": 20,
+                               "ai_defense": 10, "energy": 10})
+        btc = dep["sleeves"]["btc_digital_credit"]
+        self.assertNotIn("IBIT", btc["members"])
+        self.assertIn("IBIT", btc["count_also"])
+        self.assertEqual(btc["residual_to"], ("MSTR", "ASST", "BITA"))
+        self.assertEqual({k: float(v) for k, v in dep["sleeves"]["energy"]["members"].items()},
+                         {"CCJ": 40, "GEV": 20, "VRT": 20, "OKLO": 10, "MARA": 10})
+        self.assertEqual(cfg["sats_guards"].get("btc_floor_usd"), 60000)
+        self.assertNotIn("limit_price_max_usd", cfg["sats_guards"])
+        self.assertFalse(SHIPPED_POLICY["approval"]["require_user_confirm"])
 
-    def test_prompt_names_ibit_standin_and_mstr_low_preference(self):
+    def test_prompt_describes_underweight_first_not_ibit_fold(self):
         text = (ROOT / "treasury" / "fund_manager_daily_prompt.txt").read_text(encoding="utf-8")
-        self.assertIn("native-BTC stand-in", text)
-        self.assertIn("LOW PREFERENCE through 2026-11-30", text)
-        self.assertIn("The floating 25% is always IBIT", text)
-        self.assertIn("STRC, SATA, STRK, SATS + floating", text)
-        self.assertIn("SATS 10%", text)
-        self.assertIn("honor_ai_floating", text)
+        self.assertIn("underweight_first", text)
+        self.assertIn("IBIT gets NO new money", text)
+        self.assertIn("SATS has no price cap", text)
+        self.assertIn("BTC spot under $60,000", text)
+        self.assertIn("GLDM, AI-defense and energy buys auto-execute", text)
+        self.assertNotIn("The floating 25% is always IBIT", text)
+        self.assertNotIn("$95 or less", text)
         self.assertNotIn("ONLY choose how the floating 35% splits", text)
 
     def test_non_allowlisted_buy_dropped_by_planner(self):
@@ -623,7 +638,7 @@ class TestValuationQuotes(Base):
         self.assertFalse(allowed[0]["auto_execute"])
 
         shipped = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
-        self.assertTrue(shipped["theme_buy_hold"]["active"])
+        self.assertFalse(shipped["theme_buy_hold"]["active"])  # cleared 2026-11-24 (t7739s171722)
         policy = json.loads(self.policy.read_text(encoding="utf-8"))
         policy["theme_buy_hold"]["active"] = False
         self.policy.write_text(json.dumps(policy), encoding="utf-8")
@@ -653,7 +668,7 @@ class TestValuationQuotes(Base):
         self.assertEqual(len(pending), 1)
         self.assertAlmostEqual(pending[0]["notional_usd"], 0.10, places=2)
         self.assertFalse(any(o.get("symbol") == "MARA" and o.get("side") != "buy" for o in orders if isinstance(o, dict)))
-        self.assertTrue(shipped["theme_buy_hold"]["active"])
+        self.assertFalse(shipped["theme_buy_hold"]["active"])
 
     def test_missing_mara_price_blocks_the_buy(self):
         positions = [
@@ -1297,3 +1312,86 @@ class TestAdvisoryOnlyRefusesExecution(Base):
             with self.assertRaises(broker.BrokerError):
                 cli.place_order(order)
         self.assertEqual(ran, [])  # grok was never launched with the place carve-out
+
+
+# ------------------------------------------------- underweight_first (2026-11-24)
+CB_FRESH = {"btc_usd_price": 70000, "as_of": (NOW - timedelta(minutes=30)).isoformat()}
+CB_LOW = {"btc_usd_price": 59000, "as_of": (NOW - timedelta(minutes=30)).isoformat()}
+
+
+class TestUnderweightFirst(Base):
+    """Chris 2026-11-24: whole-fund targets, most underweight sleeve first,
+    no IBIT money, GLDM and theme buys auto, SATS at market (no cap)."""
+
+    def write_policy(self, live=True, **adapter):
+        p = copy.deepcopy(SHIPPED_POLICY)
+        p["live"] = live
+        p["execution"]["broker_adapter"].update(adapter)
+        self.policy.write_text(json.dumps(p), encoding="utf-8")
+
+    def setUp(self):
+        super().setUp()
+        self.cb = self.dir / "coinbase_latest.json"
+        self.cb.write_text(json.dumps(CB_FRESH), encoding="utf-8")
+        cbp = mock.patch.object(broker, "COINBASE_SNAPSHOT_PATH", self.cb)
+        cbp.start()
+        self.addCleanup(cbp.stop)
+
+    def test_most_underweight_sleeve_fills_first(self):
+        # $100 invested: BTC sleeve 50 (35 target), TSLA 25, SPCX 25; GLDM/AI/energy empty.
+        positions = [pos("STRC", 0.5, 100), pos("TSLA", 1, 25), pos("SPCX", 1, 25)]
+        orders, info = self.plan([], snapshot=snap(cash=10.0, positions=positions))
+        legs = self.legs(info)
+        # total after = 110: ai_defense gap 11, energy gap 11 (tie -> name order), gldm 5.5.
+        # All $10 goes to ai_defense, most underweight member first: PLTR 5.50, CRWD 2.75, S 1.75.
+        self.assertEqual(legs, {"PLTR": 5.5, "CRWD": 2.75, "S": 1.75})
+        self.assertEqual(info["deploy_mode"], "underweight_first")
+        self.assertTrue(all(o["side"] == "buy" for o in orders))
+
+    def test_no_ibit_and_gldm_auto(self):
+        positions = [pos("TSLA", 1, 40), pos("SPCX", 1, 40), pos("PLTR", 1, 10), pos("CCJ", 1, 10)]
+        _, info = self.plan([], snapshot=snap(cash=60.0, positions=positions))
+        legs = self.legs(info)
+        self.assertNotIn("IBIT", legs)
+        self.assertIn("GLDM", legs)
+        self.assertEqual(info.get("pending_approvals"), [])
+
+    def test_sats_market_no_cap_and_btc_floor_guard(self):
+        positions = [pos("TSLA", 1, 100), pos("SPCX", 1, 100), pos("PLTR", 1, 25), pos("CRWD", 1, 13),
+                     pos("S", 1, 13), pos("CCJ", 1, 20), pos("GEV", 1, 10), pos("VRT", 1, 10),
+                     pos("OKLO", 1, 5), pos("MARA", 1, 5), pos("GLDM", 1, 25),
+                     pos("STRC", 1, 40), pos("SATA", 1, 40), pos("STRK", 1, 26), pos("MSTR", 1, 17),
+                     pos("ASST", 1, 14), pos("BITA", 1, 14)]
+        c = FakeClient(quotes={"SATS": 150.0})
+        _, info = self.plan([], snapshot=snap(cash=20.0, positions=positions), client=c)
+        self.assertIn("SATS", self.legs(info))  # no price cap; quote is irrelevant
+        self.cb.write_text(json.dumps(CB_LOW), encoding="utf-8")
+        led = self.dir / "ledger2.json"
+        _, info2 = broker.plan_intents([], snapshot=snap(cash=20.0, positions=positions), policy_path=self.policy,
+                                       ledger_path=led, now=NOW, persist=False, client=c)
+        self.assertNotIn("SATS", self.legs(info2))
+        self.assertIn("SATS", info2["guarded"])
+        self.assertTrue(set(self.legs(info2)) & {"MSTR", "ASST", "BITA"})
+
+    def test_stale_btc_price_fails_closed_for_sats(self):
+        self.cb.write_text(json.dumps({"btc_usd_price": 90000, "as_of": (NOW - timedelta(days=2)).isoformat()}))
+        cfg, err = broker.load_adapter_config(self.policy)
+        self.assertEqual(err, "")
+        self.assertIn("SATS", broker.guarded_symbols(cfg, NOW))
+
+    def test_sub_minimum_legs_roll(self):
+        positions = [pos("TSLA", 1, 40), pos("SPCX", 1, 40), pos("STRC", 1, 20)]
+        _, info = self.plan([], snapshot=snap(cash=5.5, positions=positions))
+        legs = self.legs(info)
+        self.assertTrue(all(v >= 1.0 for v in legs.values()))
+        self.assertLessEqual(sum(legs.values()), 5.5)
+
+    def test_theme_and_gldm_legs_place_without_approval(self):
+        positions = [pos("TSLA", 1, 40), pos("SPCX", 1, 40), pos("STRC", 1, 35)]
+        c = FakeClient()
+        res, info = self.run_all([], c, snapshot=snap(cash=12.0, positions=positions))
+        self.assertTrue(res)
+        self.assertTrue(all(r["status"] == "placed" for r in res), [r.get("reason") for r in res])
+        placed = {call[1]["symbol"] for call in c.placed}
+        self.assertTrue(placed & {"PLTR", "CRWD", "S", "CCJ", "GEV", "VRT", "OKLO", "MARA", "GLDM"})
+
