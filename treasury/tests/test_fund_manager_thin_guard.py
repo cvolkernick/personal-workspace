@@ -197,7 +197,7 @@ class TestBrokerUnavailable(Base):
 class TestPinsAndThemes(Base):
     def test_pin_weights_sum_and_basis(self):
         cs = json.loads((ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8"))
-        fm_policy = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        fm_policy = json.loads((ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json").read_text(encoding="utf-8"))
         self.assertEqual(cs["basis"], "percent_of_stocks_growth_sleeve")
         self.assertEqual({k: Decimal(str(v)) for k, v in cs["pins"].items()}, PIN_SUM)
         self.assertEqual({k: Decimal(str(v)) for k, v in cs["whole_fund_pct"].items()}, WHOLE)
@@ -209,13 +209,13 @@ class TestPinsAndThemes(Base):
         self.assertEqual({k: Decimal(str(v)) for k, v in st["whole_fund_pct"].items()}, WHOLE)
         for blob in (
             (ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8"),
-            (ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"),
+            (ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json").read_text(encoding="utf-8"),
         ):
             self.assertIsNone(re.search(r"\bCRK\b", blob))
             self.assertIsNone(re.search(r"\bETR\b", blob))
 
     def test_mara_is_energy_pin_not_btc_miner(self):
-        policy = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        policy = json.loads((ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json").read_text(encoding="utf-8"))
         btc = policy["sleeves"]["btc_digital_credit"]
         self.assertNotIn("MARA", btc["symbols"])
         self.assertNotIn("MARA", btc["sub_sleeves"]["miners_infra"]["symbols"])
@@ -333,7 +333,7 @@ class TestThemeBuyHold(Base):
 
     def test_active_hold_proposes_and_places_no_theme_buys(self):
         cs = json.loads((ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8"))
-        fm_policy = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        fm_policy = json.loads((ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json").read_text(encoding="utf-8"))
         self.assertEqual({k: Decimal(str(v)) for k, v in cs["pins"].items()}, PIN_SUM)
         self.assertTrue(fm_policy["theme_buy_hold"]["active"])
         self.assertEqual(fm_policy["theme_buy_hold"]["themes"], ["ai_defense", "energy"])
@@ -429,7 +429,7 @@ class TestThemeBuyHold(Base):
             raise AssertionError("config load placed an order")
 
         with unittest.mock.patch.object(broker.GrokMcpClient, "place_" + "order", _place):
-            cfg, err = broker.load_adapter_config(ROOT / "investment" / "fund_manager.json")
+            cfg, err = broker.load_adapter_config(ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json")
             self.assertEqual(err, "")
             self.assertTrue(cfg["theme_buy_hold"]["active"])
             self.assertEqual(list(cfg["theme_buy_hold"]["themes"]), ["ai_defense", "energy"])
