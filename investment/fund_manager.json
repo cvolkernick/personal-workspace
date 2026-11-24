@@ -194,7 +194,7 @@
         "OKLO": 1.67,
         "MARA": 1.67
       },
-      "notes": "Chris 2026-11-17 Agentic 1752. BASIS IS PERCENT OF THE STOCKS SLEEVE (sum 100), the same basis this file already used. Chris's wording was whole-fund: TSLA 20 / SPCX 20 / AI defense 10 (PLTR 5, CRWD 2.5, S 2.5) / energy 10 (CCJ 4, GEV 2, VRT 2, OKLO 1, MARA 1) = 60% of the fund. whole_fund_pct records that wording; pins are sleeve-basis (TSLA 33.33, SPCX 33.33, PLTR 8.33, CRWD 4.17, S 4.17, CCJ 6.67, GEV 3.33, VRT 3.33, OKLO 1.67, MARA 1.67). consider_share.json remains bias_pin_sot and matches these numbers. Buy-only. AI defense fills before energy. Theme buys auto-execute, buy-only, with no per-buy yes since Chris 2026-11-24 4:04 PM ET (card t7739s171722). MARA is an energy pin, not a BTC miner.",
+      "notes": "Chris 2026-11-17 Agentic 1752. BASIS IS PERCENT OF THE STOCKS SLEEVE (sum 100), the same basis this file already used. Chris's wording was whole-fund: TSLA 20 / SPCX 20 / AI defense 10 (PLTR 5, CRWD 2.5, S 2.5) / energy 10 (CCJ 4, GEV 2, VRT 2, OKLO 1, MARA 1) = 60% of the fund. whole_fund_pct records that wording; pins are sleeve-basis (TSLA 33.33, SPCX 33.33, PLTR 8.33, CRWD 4.17, S 4.17, CCJ 6.67, GEV 3.33, VRT 3.33, OKLO 1.67, MARA 1.67). consider_share.json remains bias_pin_sot and matches these numbers. Buy-only. Deposits go to the sleeve furthest behind its whole-fund target first (targets.deploy underweight_first, 2026-11-24); there is no fixed AI-defense-before-energy order. Theme buys auto-execute, buy-only, with no per-buy yes since Chris 2026-11-24 4:04 PM ET (card t7739s171722). MARA is an energy pin, not a BTC miner.",
       "whole_fund_pct": {
         "TSLA": 20.0,
         "SPCX": 20.0,

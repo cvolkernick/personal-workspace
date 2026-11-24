@@ -27,8 +27,11 @@ cash fills the BTC + digital-credit sleeve first until it reaches 40%.
   the BTC sleeve and stock legs are dropped (``not_submitted_sleeve_gate``).
   At/over 40%, BTC gets what keeps it at 40% after the run and stocks get the
   rest, buy-only toward the sleeve-basis pins in consider_share.json (sum 100).
-  AI defense fills before energy. Theme buys are pending Chris's approval and
-  are never auto-executed. ``theme_buy_hold`` (shipped active) blocks the
+  (Legacy planner text. Since 2026-11-24 the live mode is ``targets.deploy``
+  ``underweight_first``: deposits go to the sleeve furthest behind its
+  whole-fund target first, with no AI-defense-before-energy order, and theme and
+  GLDM buys auto-execute buy-only with no per-buy yes; see ``_plan_underweight``.)
+  ``theme_buy_hold`` (now active false) blocks the
   ai_defense and energy themes from being proposed, placed, queued, or written
   as pending-approval items until ``active`` is set false by hand. MARA is an
   energy pin (1% of the whole fund), not a BTC miner; a buy is proposed only
