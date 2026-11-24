@@ -72,8 +72,8 @@ class TestSoundMoneyConfig(unittest.TestCase):
         share = json.loads((ROOT / "investment" / "consider_share.json").read_text(encoding="utf-8"))
         self.assertEqual(share["sound_money"]["display_name"], "Sound Money & Digital Credit")
         self.assertIn("bc0bb821", share["notes"] + share["sound_money"]["notes"] + share["basis_note"])
-        self.assertEqual(sum(share["pins"].values()), 100)
-        self.assertEqual(sum(share["sound_money"]["whole_fund_pct"].values()), 40)
+        self.assertAlmostEqual(sum(share["pins"].values()), 100)
+        self.assertAlmostEqual(sum(share["sound_money"]["whole_fund_pct"].values()), 40)
 
     def test_gldm_holding_counts_inside_the_40(self):
         policy = _policy()
