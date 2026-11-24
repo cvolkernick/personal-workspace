@@ -302,13 +302,19 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
     if gldm_symbol:
         if gldm_frac is None or gldm_frac <= 0 or gldm_frac >= 1:
             return None, "sleeves.btc_digital_credit.gldm.sleeve_fraction_of_new_cash malformed"
+        # Chris 2026-11-24 (card t7739s171722): GLDM may auto-buy. auto_execute
+        # true requires GLDM on symbol_allowlist; false keeps it off the list.
         if gldm.get("auto_execute") is True:
-            return None, "GLDM auto_execute must not be true"
-        if gldm_symbol in allow:
-            return None, "GLDM must not be on the auto-execute symbol_allowlist"
+            if gldm_symbol not in allow:
+                return None, "GLDM auto_execute true requires GLDM on symbol_allowlist"
+        elif gldm_symbol in allow:
+            return None, "GLDM must not be on the auto-execute symbol_allowlist unless auto_execute is true"
     else:
         gldm_frac = ZERO
     blocked = ((data.get("guardrails") or {}).get("blocked_symbols")) or []
+    deploy, deploy_err = _load_deploy_targets(data, allow)
+    if deploy_err:
+        return None, deploy_err
     stock_pins = load_stock_pins(p)
     cal, cal_err = _load_calendar(ba.get("market_calendar"))
     cfg = {
@@ -352,8 +358,200 @@ def load_adapter_config(policy_path: Optional[Path] = None) -> Tuple[Optional[Di
         "gldm_symbol": gldm_symbol,
         "gldm_new_cash_fraction": gldm_frac,
         "sound_money_symbols": tuple(s for s in (gldm_symbol,) if s),
+        "gldm_auto_execute": gldm.get("auto_execute") is True,
+        "deploy": deploy,
+        "sats_guards": btc.get("sats_guards") if isinstance(btc.get("sats_guards"), dict) else {},
     }
     return cfg, ""
+
+
+# --------------------------------------------------------------------------
+# Whole-fund, most-underweight-first deploy (Chris 2026-11-24, t7739s171722)
+# --------------------------------------------------------------------------
+
+DEPLOY_MODE_UNDERWEIGHT = "underweight_first"
+COINBASE_SNAPSHOT_PATH = ROOT / "treasury" / "snapshots" / "coinbase_latest.json"
+
+
+def _load_deploy_targets(data: Dict[str, Any], allow: List[str]) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Parse ``targets.deploy``. Missing block or another mode => None (legacy planner).
+
+    Shape: ``{"mode": "underweight_first", "sleeves": {name: {"whole_fund_pct": n,
+    "members": {SYM: pct_of_sleeve}, "count_toward_sleeve": [SYM...],
+    "guard_residual_to": [SYM...]}}}``. Sleeve percents sum to 100; member
+    percents sum to 100 within each sleeve. Every member must be on
+    symbol_allowlist. ``count_toward_sleeve`` names (e.g. IBIT, miners) count
+    toward the sleeve's held value but get no new money."""
+    raw = ((data.get("targets") or {}).get("deploy"))
+    if not isinstance(raw, dict) or str(raw.get("mode") or "") != DEPLOY_MODE_UNDERWEIGHT:
+        return None, ""
+    sleeves_raw = raw.get("sleeves")
+    if not isinstance(sleeves_raw, dict) or not sleeves_raw:
+        return None, "targets.deploy.sleeves missing"
+    sleeves: Dict[str, Dict[str, Any]] = {}
+    total = ZERO
+    seen: Dict[str, str] = {}
+    for name, spec in sleeves_raw.items():
+        if not isinstance(spec, dict):
+            return None, f"targets.deploy.sleeves.{name} malformed"
+        pct = _d(spec.get("whole_fund_pct"))
+        if pct is None or pct < 0:
+            return None, f"targets.deploy.sleeves.{name}.whole_fund_pct malformed"
+        members_raw = spec.get("members") if isinstance(spec.get("members"), dict) else {}
+        members: Dict[str, Decimal] = {}
+        for sym, w in members_raw.items():
+            ws = _d(w)
+            sym_u = str(sym).strip().upper()
+            if ws is None or ws < 0 or not _TICKER_RE.match(sym_u):
+                return None, f"targets.deploy.sleeves.{name}.members.{sym} malformed"
+            if sym_u not in allow:
+                return None, f"targets.deploy member {sym_u} not on symbol_allowlist"
+            if sym_u in seen:
+                return None, f"targets.deploy member {sym_u} in two sleeves ({seen[sym_u]}, {name})"
+            seen[sym_u] = str(name)
+            members[sym_u] = ws
+        if not members or abs(sum(members.values(), ZERO) - 100) > Decimal("0.01"):
+            return None, f"targets.deploy.sleeves.{name}.members must sum to 100"
+        count_also = tuple(s for s in _upper_list(spec.get("count_toward_sleeve")) if s not in members)
+        for sym_u in count_also:
+            if sym_u in seen:
+                return None, f"targets.deploy symbol {sym_u} in two sleeves ({seen[sym_u]}, {name})"
+            seen[sym_u] = str(name)
+        residual = tuple(s for s in _upper_list(spec.get("guard_residual_to")) if s in members)
+        sleeves[str(name)] = {"pct": pct, "members": members, "count_also": count_also, "residual_to": residual}
+        total += pct
+    if abs(total - 100) > Decimal("0.01"):
+        return None, "targets.deploy sleeve whole_fund_pct must sum to 100"
+    return {
+        "mode": DEPLOY_MODE_UNDERWEIGHT,
+        "sleeves": sleeves,
+        "sleeve_of": dict(seen),
+        "min_leg": _d(raw.get("min_leg_usd")) or Decimal("1"),
+    }, ""
+
+
+def _btc_spot(path: Optional[Path], now: datetime, max_age_hours: float) -> Tuple[Optional[Decimal], str]:
+    """BTC spot from the Coinbase snapshot (read-only file). None if missing or stale."""
+    p = Path(path or gate.test_path("FM_COINBASE_SNAPSHOT_PATH", COINBASE_SNAPSHOT_PATH))
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, "coinbase snapshot unreadable"
+    px = _d((data or {}).get("btc_usd_price"))
+    ts = gate._parse_ts((data or {}).get("as_of"))
+    if px is None or px <= 0:
+        return None, "no btc_usd_price in coinbase snapshot"
+    if ts is None or (now - ts).total_seconds() / 3600.0 > max_age_hours:
+        return None, "coinbase snapshot stale"
+    return px, "coinbase_latest"
+
+
+def guarded_symbols(cfg: Dict[str, Any], now: datetime, coinbase_path: Optional[Path] = None) -> Dict[str, str]:
+    """{symbol: reason} for deploy members that must get no new money this run.
+
+    blocked_symbols, theme_buy_hold, and the SATS stop-buy guards: a manual
+    ``stop_buy_active`` (skipped dividend / senior issuance) or BTC spot under
+    ``btc_floor_usd``. An unknown or stale BTC price fails closed (SATS skipped).
+    There is no SATS price cap (Chris 2026-11-24, t7743s171743)."""
+    out: Dict[str, str] = {}
+    dep = cfg.get("deploy") or {}
+    for sym in (dep.get("sleeve_of") or {}):
+        if sym in cfg["blocked"]:
+            out[sym] = "on guardrails.blocked_symbols"
+        else:
+            why = _theme_hold_reason(cfg, sym)
+            if why:
+                out[sym] = why
+    g = cfg.get("sats_guards") or {}
+    gsym = str(g.get("symbol") or "").strip().upper()
+    if gsym and gsym not in out and gsym in (dep.get("sleeve_of") or {}):
+        if g.get("stop_buy_active") is True:
+            out[gsym] = f"sats_guards.stop_buy_active ({g.get('stop_buy_reason') or 'manual stop'})"
+        else:
+            floor = _d(g.get("btc_floor_usd"))
+            if floor is not None and floor > 0:
+                px, why = _btc_spot(coinbase_path, now, cfg["snapshot_max_age_hours"])
+                if px is None:
+                    out[gsym] = f"BTC spot unknown ({why}); BTC-floor guard fails closed"
+                elif px < floor:
+                    out[gsym] = f"BTC spot ${px:,.0f} < ${floor:,.0f} floor (SATS stop-buy guard)"
+    return out
+
+
+def allocate_underweight_first(
+    run_total: Decimal,
+    held: Dict[str, Decimal],
+    invested: Decimal,
+    cfg: Dict[str, Any],
+    guarded: Dict[str, str],
+) -> Tuple[Dict[str, Decimal], Dict[str, Any]]:
+    """Buy-only. Fill the sleeve with the largest dollar gap to its whole-fund
+    target first (gap measured against invested + run_total), each sleeve up to
+    its gap, then the next. Inside a sleeve, the most underweight member first,
+    each up to its own gap and the per-order cap. A guarded member's target
+    goes to the sleeve's ``guard_residual_to`` names. A leg under ``min_leg``
+    is skipped and its cash rolls to the next deposit. Never a sell."""
+    dep = cfg["deploy"]
+    min_leg = max(dep.get("min_leg") or Decimal("1"), cfg.get("min_order") or Decimal("1"))
+    total_after = invested + run_total
+    report: Dict[str, Any] = {"total_after_usd": float(total_after), "sleeves": {}, "skipped": []}
+    gaps: List[Tuple[Decimal, str]] = []
+    for name, sl in dep["sleeves"].items():
+        h = sum((held.get(s, ZERO) for s in list(sl["members"]) + list(sl["count_also"])), ZERO)
+        tgt = total_after * sl["pct"] / Decimal(100)
+        gap = tgt - h
+        report["sleeves"][name] = {
+            "held_usd": float(_cents(h)),
+            "pct_now": float(round(h / invested * 100, 2)) if invested > 0 else 0.0,
+            "target_pct": float(sl["pct"]),
+            "gap_usd": float(_cents(gap)),
+        }
+        if gap > 0:
+            gaps.append((gap, name))
+    gaps.sort(key=lambda x: (-x[0], x[1]))
+    remaining = _cents(run_total)
+    legs: Dict[str, Decimal] = {}
+    for sgap, name in gaps:
+        if remaining < min_leg:
+            break
+        sl = dep["sleeves"][name]
+        budget = _cents(min(remaining, sgap))
+        # member targets, with guarded members' share moved to residual names
+        weights = dict(sl["members"])
+        moved = ZERO
+        for sym in list(weights):
+            if sym in guarded:
+                moved += weights.pop(sym)
+        if moved > 0:
+            res = [s for s in sl["residual_to"] if s in weights]
+            res_w = sum((sl["members"][s] for s in res), ZERO)
+            if res and res_w > 0:
+                for s in res:
+                    weights[s] += moved * sl["members"][s] / res_w
+        if not weights:
+            report["skipped"].append({"sleeve": name, "reason": "every member guarded"})
+            continue
+        mgaps = []
+        for sym, w in weights.items():
+            g = total_after * sl["pct"] / Decimal(100) * w / Decimal(100) - held.get(sym, ZERO)
+            if g > 0:
+                mgaps.append((g, sym))
+        mgaps.sort(key=lambda x: (-x[0], x[1]))
+        spent = ZERO
+        for g, sym in mgaps:
+            left = budget - spent
+            if left < min_leg:
+                break
+            take = _cents(min(left, g, cfg["max_order"]))
+            if take < min_leg:
+                report["skipped"].append({"symbol": sym, "sleeve": name, "usd": float(take),
+                                          "reason": f"under ${min_leg} minimum leg; rolls to next deposit"})
+                continue
+            legs[sym] = legs.get(sym, ZERO) + take
+            spent += take
+        remaining -= spent
+    report["uninvested_usd"] = float(_cents(remaining))
+    return legs, report
 
 
 def _load_calendar(raw: Any) -> Tuple[Optional[Dict[str, Any]], str]:
@@ -1334,6 +1532,10 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             }
         share = (bv["btc"] / invested) if invested > 0 else ZERO
         info["btc_share_before"] = float(round(share, 4))
+        if (cfg.get("deploy") or {}).get("mode") == DEPLOY_MODE_UNDERWEIGHT:
+            return _plan_underweight(
+                cfg, snapshot, quotes, invested, run_total, proposed, info, led, now, run_date, persist, done,
+            )
         tgt = cfg["btc_target"]
         stocks = cfg["stocks"]
         prop_stock = sum((proposed.get(s, ZERO) for s in stocks), ZERO)
@@ -1539,6 +1741,60 @@ def _plan(buys, snapshot, policy_path, ledger_path, now, persist, client=None, a
             for s, v in legs.items()
         ]
         return orders, info
+
+
+def _plan_underweight(cfg, snapshot, quotes, invested, run_total, proposed, info, led, now, run_date, persist, done):
+    """Whole-fund targets, most-underweight sleeve first. Every leg is an auto
+    market dollar buy (no per-buy approval, no pending queue, no IBIT fold)."""
+    ag = _snapshot_agentic(snapshot) or {}
+    held: Dict[str, Decimal] = {}
+    for pos in ag.get("positions") or []:
+        if not isinstance(pos, dict):
+            continue
+        sym = str(pos.get("symbol") or "").strip().upper()
+        mv = _market_value(pos, quotes)
+        if sym and mv is not None and mv > 0:
+            held[sym] = held.get(sym, ZERO) + mv
+    guarded = guarded_symbols(cfg, now)
+    info["deploy_mode"] = DEPLOY_MODE_UNDERWEIGHT
+    info["guarded"] = dict(guarded)
+    info["pending_approvals"] = []
+    legs, report = allocate_underweight_first(run_total, held, invested, cfg, guarded)
+    info["underweight_report"] = report
+    sleeve_of = cfg["deploy"]["sleeve_of"]
+    info["symbol_pct_now"] = {s: float(round(v / invested * 100, 2)) for s, v in held.items()} if invested > 0 else {}
+    repaired: List[str] = []
+    tol = max(cfg["tol_usd"], cfg["tol_pct"] * run_total)
+    for s in set(proposed) | set(legs):
+        if abs(proposed.get(s, ZERO) - legs.get(s, ZERO)) > tol:
+            repaired.append(f"{s} ${proposed.get(s, ZERO):.2f} -> ${legs.get(s, ZERO):.2f} (underweight-first plan)")
+    for sym, why in guarded.items():
+        info["notes"].append(f"{sym} gets no new money: {why}")
+    if report.get("uninvested_usd"):
+        info["notes"].append(f"${report['uninvested_usd']:.2f} left uninvested (sub-minimum; rolls to next deposit)")
+    if not legs:
+        return done(S_BELOW_MIN, "no leg at or over the minimum after underweight-first allocation")
+    run_id = f"{run_date}T{now.astimezone(_ET).strftime('%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    status = P_REPAIRED if repaired else P_PLANNED
+    info.update(
+        status=status, run_id=run_id, repairs=repaired, floating_source="none (IBIT floating leg removed 2026-11-24)",
+        legs=[{"symbol": s, "notional_usd": float(v), "sleeve": sleeve_of.get(s, "")} for s, v in legs.items()],
+    )
+    info["summary"] = (f"{status} run {run_id} (underweight_first): " + ", ".join(f"{s} ${v:.2f}" for s, v in legs.items())
+                       + f" | valuation {info.get('valuation')}")
+    if persist:
+        led.data["runs"][run_id] = {
+            "run_date": run_date, "status": status, "created_at": now.isoformat(),
+            "legs": {s: f"{v:.2f}" for s, v in legs.items()}, "repairs": repaired,
+        }
+        led.prune(now)
+        led.save()
+    orders = [
+        {"symbol": s, "side": "buy", "notional_usd": float(v), "purpose": "deploy", "run_id": run_id,
+         "sleeve": sleeve_of.get(s, "")}
+        for s, v in legs.items()
+    ]
+    return orders, info
 
 
 def _apply_fixed_leg_guards(fixed: Dict[str, Decimal], cfg: Dict[str, Any], client: Optional["RobinhoodClient"],
@@ -1795,7 +2051,9 @@ def _submit(gated, client, policy_path, ledger_path, now) -> Dict[str, Any]:
     held = _theme_hold_reason(cfg, symbol)
     if held:
         return _result(S_THEME_HOLD, held + "; not proposed, not queued, not written as pending approval", **base)
-    if symbol in set(cfg.get("theme_symbols") or ()):
+    # underweight_first deploy (Chris 2026-11-24, t7739s171722): theme buys
+    # auto-execute; the per-buy approval gate applies to the legacy planner only.
+    if symbol in set(cfg.get("theme_symbols") or ()) and not cfg.get("deploy"):
         return _result(
             S_PENDING,
             f"{symbol} is a theme buy (AI defense or energy); Chris per-buy approval required; not auto-executed",

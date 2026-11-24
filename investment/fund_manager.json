@@ -6,13 +6,15 @@
   "status": "live_autopilot",
   "live": true,
   "theme_buy_hold": {
-    "active": true,
+    "active": false,
     "themes": [
       "ai_defense",
       "energy"
     ],
     "reason": "AI-defense and energy theme buys stay held until this flag is set active false by hand, after Nvidia reports on the evening of 2026-11-17. While active those buys are not proposed, not placed, not queued, and not written as pending-approval items.",
-    "set": "2026-11-17"
+    "set": "2026-11-17",
+    "cleared": "2026-11-24",
+    "cleared_by": "Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok)"
   },
   "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
   "cadence": {
@@ -163,7 +165,7 @@
   "approval": {
     "require_user_confirm": false,
     "require_owner_feedback": false,
-    "notes": "No per-trade pop-up and no required owner feedback. Dashboard shows debate for optional oversight. Kill switch: withdraw agentic capital or set live:false."
+    "notes": "No per-trade pop-up and no per-buy yes (Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok) dropped the per-buy rule for GLDM and theme buys too). Kill switch: withdraw agentic capital, set live:false, or FM_BROKER_DISABLE=1."
   },
   "limits": {
     "max_single_order_notional_usd": null,
@@ -176,26 +178,8 @@
     "stocks_growth_pct": 0.6,
     "band_pct": 0.05,
     "cash_is_unallocated": true,
-    "notes": "Modernized 60/40. The 40 is Sound Money & Digital Credit: BTC + digital credit 35 and GLDM 5, inside the 40. Stocks stay 60. Cash counts as unallocated until deployed. Within the BTC + digital credit 35, new-money fractions stay STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25 (fold into IBIT). GLDM is 5/40 = 12.5% of new sleeve cash, buy-only from new deposits, pending approval only.",
+    "notes": "Modernized 60/40. The 40 is Sound Money & Digital Credit: BTC + digital credit 35 and GLDM 5. Stocks 60 (TSLA 20 / SPCX 20 / AI defense 10 / energy 10). Since 2026-11-24 (Chris, card t7739s171722) deposits deploy via targets.deploy (underweight_first): most underweight sleeve first, buy-only, no IBIT new money, GLDM and theme buys auto. Cash counts as unallocated until deployed.",
     "sound_money_display_name": "Sound Money & Digital Credit",
-    "whole_fund_targets_2026_11_21": {
-      "TSLA": 20,
-      "SPCX": 20,
-      "PLTR": 5,
-      "CRWD": 2.5,
-      "S": 2.5,
-      "CCJ": 4,
-      "GEV": 2,
-      "VRT": 2,
-      "OKLO": 1,
-      "MARA": 1,
-      "STRC": 8.75,
-      "SATA": 8.75,
-      "STRK": 5.25,
-      "SATS": 3.5,
-      "IBIT": 8.75,
-      "GLDM": 5
-    },
     "symbol_targets": {
       "bias_pin_sot": "investment/consider_share.json",
       "pins": {
@@ -226,6 +210,104 @@
       "basis": "percent_of_stocks_growth_sleeve",
       "sum_to": 100,
       "whole_fund_sleeve_pct": 60
+    },
+    "deploy": {
+      "mode": "underweight_first",
+      "as_of": "2026-11-24",
+      "ruled_by": "Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok)",
+      "fill": "most_underweight_sleeve_first_by_usd_gap",
+      "basis": "whole_fund_pct of invested value plus this run's cash",
+      "buy_only": true,
+      "no_sells": true,
+      "no_margin": true,
+      "per_buy_user_confirm": false,
+      "min_leg_usd": 1.0,
+      "sub_min_legs": "skipped; cash rolls to the next deposit",
+      "sleeves": {
+        "btc_digital_credit": {
+          "whole_fund_pct": 35,
+          "members": {
+            "STRC": 25,
+            "SATA": 25,
+            "STRK": 15,
+            "SATS": 10,
+            "MSTR": 9,
+            "ASST": 8,
+            "BITA": 8
+          },
+          "count_toward_sleeve": [
+            "IBIT",
+            "RIOT",
+            "CLSK",
+            "WULF",
+            "IREN"
+          ],
+          "guard_residual_to": [
+            "MSTR",
+            "ASST",
+            "BITA"
+          ],
+          "notes": "11/10 ruling inside the sleeve. IBIT gets no new money (held IBIT and miners still count toward the 35). A guarded member's share (e.g. SATS under its stop-buy guards) goes to MSTR/ASST/BITA."
+        },
+        "gldm": {
+          "whole_fund_pct": 5,
+          "members": {
+            "GLDM": 100
+          }
+        },
+        "tsla": {
+          "whole_fund_pct": 20,
+          "members": {
+            "TSLA": 100
+          }
+        },
+        "spcx": {
+          "whole_fund_pct": 20,
+          "members": {
+            "SPCX": 100
+          }
+        },
+        "ai_defense": {
+          "whole_fund_pct": 10,
+          "members": {
+            "PLTR": 50,
+            "CRWD": 25,
+            "S": 25
+          }
+        },
+        "energy": {
+          "whole_fund_pct": 10,
+          "members": {
+            "CCJ": 40,
+            "GEV": 20,
+            "VRT": 20,
+            "OKLO": 10,
+            "MARA": 10
+          }
+        }
+      },
+      "notes": "Deposit deploy fills the sleeve with the largest dollar gap to its whole-fund target first, then the next; inside a sleeve the most underweight member first. Market dollar orders for every name (SATS included). Auto-executed; no per-buy approval and no pending queue. Read by treasury/fund_manager_broker._plan_underweight."
+    },
+    "whole_fund_targets_2026_11_24": {
+      "TSLA": 20,
+      "SPCX": 20,
+      "PLTR": 5,
+      "CRWD": 2.5,
+      "S": 2.5,
+      "CCJ": 4,
+      "GEV": 2,
+      "VRT": 2,
+      "OKLO": 1,
+      "MARA": 1,
+      "STRC": 8.75,
+      "SATA": 8.75,
+      "STRK": 5.25,
+      "SATS": 3.5,
+      "MSTR": 3.15,
+      "ASST": 2.8,
+      "BITA": 2.8,
+      "IBIT": 0,
+      "GLDM": 5
     }
   },
   "sleeves": {
@@ -244,12 +326,12 @@
         "sleeve_fraction_of_new_cash": 0.125,
         "buy_only": true,
         "new_deposits_only": true,
-        "requires_per_buy_approval": true,
-        "auto_execute": false,
+        "requires_per_buy_approval": false,
+        "auto_execute": true,
         "never_sell": true,
         "never_rebalance": true,
-        "on_symbol_allowlist": false,
-        "notes": "Chris 2026-11-21. GLDM is inside the 40, not a third sleeve. Buy-only from new deposits, pending-approval path only. Every buy needs Chris's per-buy yes. Never auto-execute. Not on execution.broker_adapter.symbol_allowlist. No sells, no rebalance."
+        "on_symbol_allowlist": true,
+        "notes": "GLDM is inside the 40 (5 whole-fund points). Buy-only from new deposits, auto-executed by the underweight-first planner (Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok)). No sells, no rebalance."
       },
       "symbols": [
         "BTC",
@@ -331,26 +413,10 @@
           "notes": "Chris 2026-11-21: GLDM is the gold vehicle and sits inside the Sound Money sleeve at 5 whole-fund points. Buy-only, new deposits only, pending approval, never auto-execute. IAU, GLD, PAXG, GDX, and SLV stay research-only. Not RH Gold membership. Not a substitute for BTC or digital credit."
         }
       },
-      "notes": "Sound Money & Digital Credit (sleeve key btc_digital_credit). Whole fund: BTC + digital credit 35 + GLDM 5 = 40, stocks 60. New-money fractions inside the 35 stay STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25; the planner reserves 12.5% of new sleeve cash for GLDM pending approval and applies those fractions to the rest. GLDM is buy-only from new deposits and never an auto order. IAU/GLD/PAXG/GDX/SLV stay research-only. | 2026-11-17: MARA is not in this sleeve (moved to stocks_growth energy).",
+      "notes": "Sound Money & Digital Credit (sleeve key btc_digital_credit). Whole fund: BTC + digital credit 35 + GLDM 5 = 40, stocks 60. Inside the 35: STRC 25 / SATA 25 / STRK 15 / SATS 10 / MSTR 9 / ASST 8 / BITA 8; IBIT no new money. GLDM auto-buys. Deploy is targets.deploy underweight_first (Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok)).",
       "new_money_weights": {
-        "STRC": 0.25,
-        "SATA": 0.25,
-        "STRK": 0.15,
-        "SATS": 0.1,
-        "floating": 0.25,
-        "floating_default": "IBIT",
-        "floating_universe": [
-          "IBIT",
-          "MSTR",
-          "ASST",
-          "BITA",
-          "RIOT",
-          "CLSK",
-          "WULF",
-          "IREN"
-        ],
         "buy_only": true,
-        "notes": "Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only — never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC); legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference) applies only if honor_ai_floating is turned on. 2026-10-26: the floating 35% always goes to fold_into (IBIT). honor_ai_floating is false, so the planner ignores AI-proposed floating names. Hard-enforced by treasury/fund_manager_broker.plan_intents. | 2026-10-28: Chris ruled SATS 10 / floating 25 (STRC/SATA/STRK unchanged). Recorded in ruled_2026_10_28; not executable until the planner reads SATS as a fixed leg (see that block). | 2026-10-28 (Forge): live keys now STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25. The planner reads every uppercase ticker key with a numeric weight here as a fixed leg (each must be on symbol_allowlist; fixed + floating must sum to 1). SATS is bought only when a live quote is <= sats_guards.limit_price_max_usd; otherwise its leg folds into IBIT. | 2026-11-17: MARA removed from floating_universe (energy sleeve, explicit pin; not a BTC miner).",
+        "notes": "2026-11-24 (Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok)): IBIT floating leg removed; IBIT gets no new money. Fixed legs per the 11/10 ruling STRC 25 / SATA 25 / STRK 15 / SATS 10 / MSTR 9 / ASST 8 / BITA 8; residual goes to MSTR/ASST/BITA. floating_universe now only lists names whose holdings count toward the sleeve. Live deploy uses targets.deploy (underweight_first); these keys are the legacy-planner fallback. | History: Chris 2026-09-29 policy (Nakatoshi confirmed 2026-10-10): NEW cash into btc_digital_credit splits STRC 25 / SATA 25 / STRK 15 / 35 floating. Floating universe = BTC, MSTR, ASST, BITA + miners (MARA, RIOT, CLSK, WULF, IREN). Buy-only — never sell/trim to chase these weights (Chris 2026-09-22 order, #1093 no-sell guard). Executor wiring lands with #1093. | Nakatoshi 2026-10-24: IBIT replaces BTC in the floating universe as the native-BTC stand-in (the account cannot hold spot BTC); legs < $1 fold into IBIT. MSTR low preference through 2026-11-30 (execution.broker_adapter.low_preference) applies only if honor_ai_floating is turned on. 2026-10-26: the floating 35% always goes to fold_into (IBIT). honor_ai_floating is false, so the planner ignores AI-proposed floating names. Hard-enforced by treasury/fund_manager_broker.plan_intents. | 2026-10-28: Chris ruled SATS 10 / floating 25 (STRC/SATA/STRK unchanged). Recorded in ruled_2026_10_28; not executable until the planner reads SATS as a fixed leg (see that block). | 2026-10-28 (Forge): live keys now STRC 25 / SATA 25 / STRK 15 / SATS 10 / floating 25. The planner reads every uppercase ticker key with a numeric weight here as a fixed leg (each must be on symbol_allowlist; fixed + floating must sum to 1). SATS is bought only when a live quote is <= sats_guards.limit_price_max_usd; otherwise its leg folds into IBIT. | 2026-11-17: MARA removed from floating_universe (energy sleeve, explicit pin; not a BTC miner).",
         "ruled_2026_10_28": {
           "STRC": 0.25,
           "SATA": 0.25,
@@ -362,13 +428,28 @@
           "why_not_live": "treasury/fund_manager_broker.load_adapter_config hard-codes the fixed legs to STRC/SATA/STRK and rejects the config unless STRC+SATA+STRK+floating == 1. Writing SATS 0.10 / floating 0.25 into the live keys would make that sum 0.90. The adapter would then refuse to load (fail closed), which stops ALL buy runs, while SATS still got nothing. So the live keys above stay STRC 25 / SATA 25 / STRK 15 / floating 35 until the executor reads SATS.",
           "activation": "Forge (code change, not done here): make the fixed legs data-driven (every non-floating numeric key in new_money_weights, with each symbol required to be on symbol_allowlist), add SATS tests, add SATS to execution.broker_adapter.symbol_allowlist (left off for now because test_repo_config_allowlist_and_ibit_floating pins that list, and it would do nothing before the planner change), then copy this block into the live keys (SATS 0.10, floating 0.25). Guards in sleeves.btc_digital_credit.sats_guards must ship with or before that change.",
           "first_deposit": "The first funded Agentic deposit whose buy run happens after the executor change has landed on the Pi. Not 11/15 unless the change lands before that run."
-        }
+        },
+        "STRC": 0.25,
+        "SATA": 0.25,
+        "STRK": 0.15,
+        "SATS": 0.1,
+        "MSTR": 0.09,
+        "ASST": 0.08,
+        "BITA": 0.08,
+        "floating": 0.0,
+        "floating_universe": [
+          "MSTR",
+          "ASST",
+          "BITA",
+          "IBIT",
+          "RIOT",
+          "CLSK",
+          "WULF",
+          "IREN"
+        ]
       },
       "sats_guards": {
         "symbol": "SATS",
-        "limit_price_max_usd": 95.0,
-        "limit_price_enforced": true,
-        "limit_price_note": "ENFORCED by treasury/fund_manager_broker._plan (2026-10-28): before each run the planner reads a live SATS quote (read-only get_quotes) and skips the SATS leg, folding it into IBIT, when the quote is above limit_price_max_usd or unavailable. Earlier note: DOCUMENTED ONLY. The broker adapter supports market dollar orders only (load_adapter_config rejects any order_type other than market). A $95 cap needs a quote check in the planner: skip the SATS leg (or fold it into IBIT) when the live ask is above $95.",
         "no_margin": true,
         "no_margin_enforced": "partly. Every run is capped at settled cash (min(settled cash, max_run, daily cap left)), and submit re-checks live settled cash and buying power, so the adapter never buys on margin. 'No margin borrowing against SATS' (and not counting SATS toward the HY LTV buffer) is a manual or policy rule. No code checks it.",
         "stop_buy_triggers": [
@@ -376,8 +457,14 @@
           "BTC spot below ~$60,000",
           "Strive issues any new security that ranks senior to SATS (new senior preferred, notes or other debt)"
         ],
-        "stop_buy_enforced": "Trigger DETECTION is documented only (Naka checks in the daily fund brief). The STOP ACTION is enforced once applied: adding SATS to guardrails.blocked_symbols blocks it in both the order gate and the planner. Buy-only, so a trigger never means a sell.",
-        "source": "/workspace/treasury/sats-candidate-20261028.md"
+        "stop_buy_enforced": "BTC floor ENFORCED by treasury/fund_manager_broker.guarded_symbols from treasury/snapshots/coinbase_latest.json btc_usd_price (unknown/stale fails closed). Skipped dividend and senior issuance: set stop_buy_active true with a reason (or add SATS to guardrails.blocked_symbols). A tripped guard sends SATS's share to MSTR/ASST/BITA; never a sell.",
+        "source": "/workspace/treasury/sats-candidate-20261028.md",
+        "order_type": "market",
+        "price_cap": null,
+        "price_cap_removed": "Chris 2026-11-24 4:06 PM ET (card t7743s171743): drop the SATS cap; SATS buys at market like everything else",
+        "btc_floor_usd": 60000,
+        "stop_buy_active": false,
+        "stop_buy_reason": ""
       }
     },
     "stocks_growth": {
@@ -417,7 +504,7 @@
             "CRWD": 4.17,
             "S": 4.17
           },
-          "requires_per_buy_approval": true,
+          "requires_per_buy_approval": false,
           "buy_only": true
         },
         "energy": {
@@ -437,14 +524,14 @@
             "OKLO": 1.67,
             "MARA": 1.67
           },
-          "requires_per_buy_approval": true,
+          "requires_per_buy_approval": false,
           "buy_only": true,
           "mara_whole_fund_pct": 1,
           "mara_counts_existing_position": true,
           "mara_never_sell_or_trim": true
         }
       },
-      "notes": "Chris 2026-11-17: stocks sleeve pins on a sleeve basis (sum 100) matching consider_share.json. Core TSLA/SPCX auto buy-only toward those pins. AI defense fills before energy. Every AI-defense and energy buy requires Chris per-buy approval and is never auto-executed. theme_buy_hold (top of this file) ships active: those two themes are not proposed, not queued, and not written as pending-approval items until active is set false by hand after Nvidia reports on the evening of 2026-11-17. MARA is in the energy theme at 1% of the whole fund; existing shares count; never sell or trim. Watchlist names that are not pins stay research-only. Buy-only, never sell or rebalance."
+      "notes": "Whole fund TSLA 20 / SPCX 20 / AI defense 10 (PLTR 5, CRWD 2.5, S 2.5) / energy 10 (CCJ 4, GEV 2, VRT 2, OKLO 1, MARA 1). Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok): theme buys auto-execute, no per-buy approval; theme_buy_hold cleared; most underweight sleeve fills first. MARA is energy; existing shares count; never sell or trim. Buy-only."
     },
     "energy_opportunistic": {
       "target_pct": null,
@@ -454,7 +541,7 @@
         "BWXT"
       ],
       "open": true,
-      "notes": "No separate core mandate outside stocks_growth. CCJ, GEV, VRT, OKLO, and MARA are stocks_growth energy pins (Chris 2026-11-17), buy-only, approval-gated. BWXT stays watchlist-only (not a pin). BE remains blocked. Never auto-buy the watchlist."
+      "notes": "No separate core mandate outside stocks_growth. CCJ, GEV, VRT, OKLO, and MARA are stocks_growth energy pins (Chris 2026-11-17), buy-only, auto (no per-buy approval since 2026-11-24). BWXT stays watchlist-only (not a pin). BE remains blocked. Never auto-buy the watchlist."
     }
   },
   "watchlist": {
@@ -589,7 +676,8 @@
         "CCJ",
         "GEV",
         "VRT",
-        "OKLO"
+        "OKLO",
+        "GLDM"
       ],
       "order_type": "market",
       "dollar_based": true,
@@ -641,7 +729,7 @@
       "weight_tolerance_usd": 1.0,
       "weight_tolerance_pct": 0.05,
       "fold_below_usd": 1.0,
-      "fold_into": "IBIT",
+      "fold_into": "MSTR",
       "honor_ai_floating": false,
       "dedupe_window_hours": 24,
       "snapshot_max_age_hours": 6,
@@ -651,7 +739,7 @@
           "notes": "Nakatoshi 2026-10-24: keep MSTR on the floating list but prefer other floating names through this date (prompt-level; logged when chosen)."
         }
       },
-      "notes": "Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)); the floating 35% is always IBIT (honor_ai_floating false — AI-proposed floating names such as MSTR or miners are ignored); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp. | 2026-11-17 thin guard: sleeve-basis pins; open external buys of any date reserve cash and claim the day; theme buys approval-gated; MARA is energy. theme_buy_hold ships active for ai_defense and energy: those buys are not proposed or queued until active is set false by hand. Loading this file places no orders."
+      "notes": "2026-11-24 (Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok); SATS cap dropped per t7743s171743): live deploy is targets.deploy underweight_first: whole-fund targets, most underweight sleeve first, buy-only, market dollar orders for every name, GLDM and theme buys auto-execute, no IBIT floating leg, sub-$1 legs roll to the next deposit. Run cap, window, one-run-per-day and duplicate guards unchanged. | Before: Nakatoshi 2026-10-24 (Grok-approved). Buy-only adapter + deterministic run planner behind the #1093 gate. Agentic ~60% stocks (TSLA/SPCX 50/50) / 40% BTC + digital credit; hold, never sell (any sell is a manual action Chris takes himself). New cash fills BTC + digital credit first until 40% of invested value; no TSLA/SPCX buy while under 40%. BTC sleeve per run: STRC 25 / SATA 25 / STRK 15 (tolerance max($1, 5% of run)); the floating 35% is always IBIT (honor_ai_floating false — AI-proposed floating names such as MSTR or miners are ignored); legs < $1 fold into IBIT. Run cap min(settled cash, $160, daily cap left); skip under $5 investable. Market dollar DAY orders, regular hours, not before 10:00 ET, no queuing. One buy run per ET day shared by daily + bp-poll (same-day fills placed outside the adapter count). Placed orders post a decision entry to #701. client empty until prism sets FM_BROKER_CLIENT=grok_mcp. | 2026-11-17 thin guard: sleeve-basis pins; open external buys of any date reserve cash and claim the day; theme buys approval-gated; MARA is energy. theme_buy_hold ships active for ai_defense and energy: those buys are not proposed or queued until active is set false by hand. Loading this file places no orders."
     },
     "notes": "Dollar/fractional market only in regular_hours (queue if after hours). Outside regular hours use extended limit only when fractional allowed."
   },
