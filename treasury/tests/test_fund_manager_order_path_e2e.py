@@ -86,7 +86,9 @@ class OrderPathEndToEnd(unittest.TestCase):
         self.td = tempfile.TemporaryDirectory()
         self.dir = Path(self.td.name)
         self.addCleanup(self.td.cleanup)
-        policy = json.loads((ROOT / "investment" / "fund_manager.json").read_text(encoding="utf-8"))
+        # Legacy-planner path (pre-2026-11-24 policy); underweight_first is covered in
+        # test_fund_manager_broker.TestUnderweightFirst.
+        policy = json.loads((ROOT / "treasury" / "tests" / "fixtures" / "fund_manager_legacy_2026_11_23.json").read_text(encoding="utf-8"))
         self.assertFalse(policy["execution"]["broker_adapter"]["honor_ai_floating"])
         self.policy_path = self.dir / "fund_manager.json"
         self.policy_path.write_text(json.dumps(policy), encoding="utf-8")
