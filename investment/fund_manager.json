@@ -410,7 +410,7 @@
             "gold_etf",
             "gold_miners"
           ],
-          "notes": "Chris 2026-11-21: GLDM is the gold vehicle and sits inside the Sound Money sleeve at 5 whole-fund points. Buy-only, new deposits only, pending approval, never auto-execute. IAU, GLD, PAXG, GDX, and SLV stay research-only. Not RH Gold membership. Not a substitute for BTC or digital credit."
+          "notes": "Chris 2026-11-21: GLDM is the gold vehicle and sits inside the Sound Money sleeve at 5 whole-fund points. Buy-only, new deposits only, auto-executes since Chris 2026-11-24 4:04 PM ET (card t7739s171722); never sell. IAU, GLD, PAXG, GDX, and SLV stay research-only. Not RH Gold membership. Not a substitute for BTC or digital credit."
         }
       },
       "notes": "Sound Money & Digital Credit (sleeve key btc_digital_credit). Whole fund: BTC + digital credit 35 + GLDM 5 = 40, stocks 60. Inside the 35: STRC 25 / SATA 25 / STRK 15 / SATS 10 / MSTR 9 / ASST 8 / BITA 8; IBIT no new money. GLDM auto-buys. Deploy is targets.deploy underweight_first (Chris 2026-11-24 4:04 PM ET (card t7739s171722, relayed by Grok)).",
