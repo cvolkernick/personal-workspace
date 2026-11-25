@@ -551,7 +551,7 @@ def quest_log_context(
     here. The log date is ``training_day.default_log_date``: the client's
     ``training_day`` when valid, else the 4 AM-cutoff / wake training day.
     That is the same default the Log form prefills, so a 03:30 ET check-off
-    and a 03:30 ET manual log land on one session (2026-11-25). #771 picker
+    and a 03:30 ET manual log land on one session (2026-11-24). #771 picker
     authority applies to ``#log-date`` and history Save date only.
     session_type prefers an explicit PPL value, then next_session_type —
     never ``rest``.
