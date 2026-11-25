@@ -238,6 +238,65 @@ def prefer_rendered_session(
     return out
 
 
+def _plan_signature(plan: Optional[dict]) -> list:
+    """(name, sets, reps, load) per planned lift, for comparing two plans."""
+    out = []
+    for ex in flatten_plan_exercises((plan or {}).get("exercises")):
+        try:
+            load = float(ex.get("weight_lbs") if ex.get("weight_lbs") is not None else ex.get("load") or 0)
+        except (TypeError, ValueError):
+            load = 0.0
+        out.append((str(ex.get("name") or ""), int(ex.get("sets") or 0), int(ex.get("reps") or 0), load))
+    return out
+
+
+def pin_shown_plan(
+    user_id: str,
+    day: str,
+    chosen: Optional[dict],
+    saved: Optional[dict],
+    *,
+    sessions=None,
+) -> Optional[dict]:
+    """Save the local list Today just showed as the day's plan row (#1430).
+
+    ``prefer_rendered_session`` shows the local planner before the first set
+    and the saved row after it. Without this, the quest board and agent feed
+    flipped to a list the UI never showed once a set was logged. Pinning the
+    shown list makes the saved row equal what Today rendered, so the list
+    stays fixed after the first logged set. Pre-log only; goes through the
+    plan write guard in ``save_last_good_workout_plan``. Never raises.
+    """
+    if not isinstance(chosen, dict) or chosen.get("source") != "local":
+        return None
+    day = str(day or "")[:10]
+    if not day or _logged_set_on(sessions, day):
+        return None
+    if not _named_plan_exercises(chosen):
+        return None
+    if isinstance(saved, dict) and _plan_signature(saved) == _plan_signature(chosen):
+        return None
+    stored = {
+        k: v
+        for k, v in (saved if isinstance(saved, dict) else {}).items()
+        if k not in ("exercises", "generate_error")
+    }
+    stored.update(
+        {
+            "session_type": chosen.get("session_type") or stored.get("session_type"),
+            "is_rest_day": False,
+            "empty": False,
+            "exercises": flatten_plan_exercises(chosen.get("exercises")),
+            "message": chosen.get("message") or stored.get("message") or "",
+            "source": "local",
+        }
+    )
+    try:
+        return save_last_good_workout_plan(user_id, day, stored)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:160] or type(exc).__name__}
+
+
 def overlay_workout_on_payload(payload: dict, plan: dict) -> dict:
     """Copy SuperGrok exercises onto workout, store.plan, and coach.today.workout.
 

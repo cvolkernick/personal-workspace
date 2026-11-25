@@ -700,20 +700,28 @@ def drain_payload_rebuilds(timeout: float = 2.0) -> None:
         time.sleep(0.01)
 
 
-def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False):
+def _overlay_agent_workout(
+    data, uid, *, headers=None, query="", read_only=False, pin=None
+):
     """Today's workout plan exactly as GET /api/agent/today serves it.
 
-    /api/daily-tasks uses the same call so quest lifts equal plan_exercises
-    (#1304); the local planner's coach.today.workout is replaced.
+    /api/daily-tasks and /api/dashboard use the same call so quest lifts,
+    the Today list and plan_exercises are one list (#1304, #1430); the local
+    planner's coach.today.workout is replaced. ``pin`` (default: not
+    ``read_only``) saves a shown local list as the day's row so it stays
+    fixed after the first logged set. The agent-token principal never pins.
     """
     from rt_dashboard.agent_plan import (
         house_plan_user_id,
         overlay_workout_on_payload,
+        pin_shown_plan,
         prefer_rendered_session,
         stamp_and_fill_workout,
     )
     from rt_dashboard.timeutil import local_today_iso
 
+    if pin is None:
+        pin = not read_only
     plan_uid = str(uid or house_plan_user_id())
     day = (
         ((data.get("coach") or {}).get("today") or {}).get("date")
@@ -744,6 +752,7 @@ def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False
         query=query,
         read_only=read_only,
     )
+    saved = filled
     # Local plan for today's letter, and only before a set is logged.
     filled = prefer_rendered_session(
         store.get("plan") if isinstance(store.get("plan"), dict) else None,
@@ -751,6 +760,16 @@ def _overlay_agent_workout(data, uid, *, headers=None, query="", read_only=False
         today=str(day)[:10],
         sessions=data.get("sessions") or [],
     )
+    if pin:
+        # #1430: the shown local list becomes the saved row, so a logged set
+        # does not flip the quest board / feed to a list Today never showed.
+        pin_shown_plan(
+            plan_uid,
+            str(day)[:10],
+            filled,
+            saved,
+            sessions=data.get("sessions") or [],
+        )
     data = overlay_workout_on_payload(data, filled)
     return data
 
@@ -2932,9 +2951,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     "yes",
                 )
                 uid = user.get("user_id") if user else None
-                self._send_json(
-                    load_dashboard_data(force_refresh=force, user_id=uid)
-                )
+                data = load_dashboard_data(force_refresh=force, user_id=uid)
+                # #1430: Today renders the same chosen plan as /api/agent/today
+                # and the quest board. read_only: no SuperGrok call on a read.
+                try:
+                    data = _overlay_agent_workout(
+                        data,
+                        uid,
+                        headers=self.headers,
+                        query=parsed.query or "",
+                        read_only=True,
+                        pin=True,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    _log.warning("dashboard plan overlay failed: %s", e)
+                self._send_json(data)
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
