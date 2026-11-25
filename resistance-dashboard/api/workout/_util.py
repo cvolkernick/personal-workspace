@@ -834,7 +834,7 @@ def daily_tasks_complete_body(headers, payload=None, method="POST"):
                 else bool(sibling_all_done),
                 group=str(payload.get("group") or "").strip() or None,
                 slug=str(payload.get("slug") or "").strip() or None,
-                date=str(payload.get("date") or "").strip()[:10] or None,
+                date=str(payload.get("quest_day") or payload.get("date") or "").strip()[:10] or None,
                 title=str(payload.get("title") or "").strip() or None,
             )
     except Exception as exc:  # noqa: BLE001

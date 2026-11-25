@@ -4103,7 +4103,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     else bool(sibling_all_done),
                     group=str(body.get("group") or "").strip() or None,
                     slug=str(body.get("slug") or "").strip() or None,
-                    date=str(body.get("date") or "").strip()[:10] or None,
+                    date=str(body.get("quest_day") or body.get("date") or "").strip()[:10] or None,
                     title=str(body.get("title") or "").strip() or None,
                 )
                 if result.get("ok"):
