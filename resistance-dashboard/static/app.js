@@ -1677,10 +1677,16 @@
     const bodyFatSorted = [...((data.health && data.health.body_fat) || [])].sort((a, b) =>
       String(a.date).localeCompare(String(b.date))
     );
-    // Raw points stay inside the 90-day chart. The mean also sees the 6 civil
-    // days before that so a window ending on the first visible day is [D-6, D].
+    // Display only (2026-11-25): the body-fat line on this chart is a trailing
+    // 14-calendar-day mean, [D-13, D]. Sparse days are averaged as they come;
+    // a window with no reading is a gap (null), never 0 or interpolated.
+    // FitDashBodyFat.WINDOW_DAYS (7) and the phase / auto-flip math are not
+    // touched. Weight on this chart is unchanged (raw weigh-ins + linear trend).
+    const BF_CHART_AVG_DAYS = 14;
+    // Raw points stay inside the 90-day chart. The mean also sees the 13 civil
+    // days before that so a window ending on the first visible day is [D-13, D].
     const bodyFatWindow = clipToRecentCalendarDays(bodyFatSorted, 90);
-    const avgLead = bfApi && Number(bfApi.WINDOW_DAYS) > 1 ? Number(bfApi.WINDOW_DAYS) - 1 : 6;
+    const avgLead = BF_CHART_AVG_DAYS - 1;
     const bodyFatForAvg = clipToRecentCalendarDays(bodyFatSorted, 90 + avgLead);
     const weightLabels = weights.map((w) => String(w && w.date).slice(0, 10));
     const axis = bfApi ? bfApi.axisDates(weightLabels, bodyFatWindow) : weightLabels.slice();
@@ -1704,11 +1710,12 @@
       weightGoal != null && weights.length ? chartLabels.map(() => weightGoal) : null;
     const rawPoints = bfApi ? bfApi.measurements(bodyFatWindow) : [];
     const bfAvg = bfApi
-      ? bfApi.trailingAverage(bodyFatForAvg, chartLabels)
+      ? bfApi.trailingAverage(bodyFatForAvg, chartLabels, BF_CHART_AVG_DAYS)
       : chartLabels.map(() => null);
     const latestBf = bfApi ? bfApi.latest(bodyFatWindow) : null;
     const avgAtLatest =
-      bfApi && latestBf ? bfApi.trailingAverage(bodyFatForAvg, [latestBf.date])[0] : null;
+      bfApi && latestBf ? bfApi.trailingAverage(bodyFatForAvg, [latestBf.date], BF_CHART_AVG_DAYS)[0]
+        : null;
     const hasRaw = rawPoints.length > 0;
     const hasAvg = bfAvg.some((v) => v != null && Number.isFinite(Number(v)));
     const hasBf = hasRaw || hasAvg;
@@ -1752,10 +1759,10 @@
       });
     }
     if (hasBf) {
-      // Solid line is the 7-calendar-day mean. Dots are the logged readings
+      // Solid line is the 14-calendar-day mean. Dots are the logged readings
       // and are not connected, so a gap is not a filled-in measurement.
       weightDatasets.push({
-        label: "Body fat 7-day avg",
+        label: "Body fat 14-day avg",
         data: bfAvg,
         yAxisID: "y1",
         borderColor: "#ffe08a",
@@ -1882,7 +1889,7 @@
           `body fat ${Number(latestBf.percentage).toFixed(1)}% (${latestBf.date})`
         );
         if (avgAtLatest != null && Number.isFinite(Number(avgAtLatest))) {
-          bits.push(`7-day avg ${Number(avgAtLatest).toFixed(1)}%`);
+          bits.push(`body fat 14-day avg ${Number(avgAtLatest).toFixed(1)}%`);
         }
       } else {
         bits.push("no body-fat readings in this window");

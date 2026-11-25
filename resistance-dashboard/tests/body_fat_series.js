@@ -370,5 +370,62 @@ assert(bf.streakLabel("bulk", 5, 14) === "Day 5/14 at ≥15%", "bulk streak labe
 assert(bf.streakLabel("slow_bulk", 0, 14) === "Day 0/14 at ≥15%", "stored bulk phase uses ≥15%");
 assert(bf.streakLabel("cut", 14, 14) === "Day 14/14 at ≤10%", "full cut streak label");
 
+
+// 2026-11-25: the Trends chart passes a 14-calendar-day window for body fat.
+// The module default stays 7; the 14 is a display-only argument.
+assert(bf.WINDOW_DAYS === 7, "module default window still 7 (chart passes 14)");
+{
+  const W = 14;
+  // Calendar edges: [D-13, D] inclusive. D-14 is out, D-13 is in.
+  const edge = [
+    { date: "2026-11-11", percentage: 30 }, // D-14: out
+    { date: "2026-11-12", percentage: 20 }, // D-13: in
+    { date: "2026-11-25", percentage: 18 }, // D: in
+  ];
+  almostEqual(bf.trailingAverage(edge, ["2026-11-25"], W)[0], 19, "14d window is [D-13, D]");
+  almostEqual(bf.trailingAverage(edge, ["2026-11-25"])[0], 18, "default 7d window unchanged");
+  // Sparse: average whatever readings fall in the window, not the last 14 readings.
+  const sparse = [
+    { date: "2026-11-01", percentage: 25 }, // older than D-13 for 11-20: out
+    { date: "2026-11-08", percentage: 20 },
+    { date: "2026-11-15", percentage: 18 },
+    { date: "2026-11-20", percentage: 16 },
+  ];
+  almostEqual(bf.trailingAverage(sparse, ["2026-11-20"], W)[0], 18, "sparse readings in the 14 calendar days");
+  // Single reading in the window is that reading.
+  almostEqual(
+    bf.trailingAverage([{ date: "2026-11-10", percentage: 17.4 }], ["2026-11-23"], W)[0],
+    17.4,
+    "one reading 13 days back is the 14d value"
+  );
+  // Gap: no reading in the trailing 14 days is null (a gap), never 0 or interpolated.
+  const gap = bf.trailingAverage(
+    [
+      { date: "2026-10-01", percentage: 20 },
+      { date: "2026-11-25", percentage: 18 },
+    ],
+    ["2026-10-14", "2026-10-15", "2026-11-10", "2026-11-25"],
+    W
+  );
+  almostEqual(gap[0], 20, "10-14 still sees 10-01 (D-13)");
+  assert(gap[1] === null, "10-15 window [10-02, 10-15] is empty -> null");
+  assert(gap[2] === null, "mid-gap day is null, not interpolated");
+  almostEqual(gap[3], 18, "after the gap only the new reading counts");
+  // Month and DST boundary stay calendar days.
+  almostEqual(
+    bf.trailingAverage(
+      [
+        { date: "2026-10-20", percentage: 22 }, // D-13 for 11-02
+        { date: "2026-11-02", percentage: 20 },
+      ],
+      ["2026-11-02"],
+      W
+    )[0],
+    21,
+    "14d window across a month end and the DST fall-back day"
+  );
+  // Weight is not passed through this module; empty input stays null.
+  assert(bf.trailingAverage([], ["2026-11-25"], W)[0] === null, "empty 14d window is null");
+}
 console.log("ok body-fat-series");
 console.log(passed + " assertions");
