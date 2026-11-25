@@ -80,11 +80,11 @@ class KitchenInventoryCollapse(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=side-delt-quest-1", HTML)
-        self.assertIn("/app.js?v=side-delt-quest-1", SW)
+        self.assertIn("/app.js?v=quest-log-date-1", HTML)
+        self.assertIn("/app.js?v=quest-log-date-1", SW)
         self.assertIn("/styles.css?v=muscle-map-1399", HTML)
         self.assertIn("/styles.css?v=muscle-map-1399", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v174"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v175"', SW)
         self.assertNotIn("fitdash-shell-v104", SW)
         self.assertNotIn("fitdash-shell-v103", SW)
         self.assertNotIn("fitdash-shell-v102", SW)
