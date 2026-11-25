@@ -142,7 +142,7 @@ global.showAlert = () => {
 };
 global.state = {
   daily_tasks: { summary: { done: 0, total: 2 } },
-  meta: { local_today: "2026-08-23" },
+  meta: { local_today: "2026-08-23", training_day: "2026-08-23" },
   coach: { today: { date: "2026-08-23", workout: { session_type: "rest", next_session_type: "push" } } },
   sessions: [],
 };
@@ -165,6 +165,8 @@ global.patchLocalQuestCompleted = loadFn("patchLocalQuestCompleted");
 global.paintQuestMeter = loadFn("paintQuestMeter");
 global.renderHistory = () => {};
 global.renderTodayLoggedLifts = () => {};
+global.logDayISO = loadFn("logDayISO");
+global.questLogDayISO = loadFn("questLogDayISO");
 global.applyWorkoutLogToLocalState = loadFn("applyWorkoutLogToLocalState");
 global.unlockQuestCard = loadFn("unlockQuestCard");
 global.onDailyQuestClick = loadFn("onDailyQuestClick");
@@ -261,7 +263,9 @@ async function click(btn) {
   assert(body.title === "DB Flat Press (50 lb 3×10)", "body carries title");
   assert(body.slug === "ex-db-flat-press", "body carries slug");
   assert(body.completed === true, "first click completes");
-  assert(body.date === "2026-08-23", "body carries viewer civil day");
+  assert(body.quest_day === "2026-08-23", "body carries the quest board day as quest_day");
+  assert(body.date === undefined, "quest complete does not send a civil log date");
+  assert(body.training_day === "2026-08-23", "body carries the training day");
   assert(body.session_type === "push", "rest-gated Today still sends PPL session_type");
   assert(body.next_session_type === "push", "body carries next_session_type");
   assert(ready.classList.contains("is-done"), "lift card stays visible as done");
@@ -293,7 +297,7 @@ async function click(btn) {
   };
   global.state = {
     daily_tasks: { summary: { done: 1, total: 2 } },
-    meta: { local_today: "2026-08-23" },
+    meta: { local_today: "2026-08-23", training_day: "2026-08-23" },
     sessions: [
       {
         date: "2026-08-23",
@@ -507,6 +511,72 @@ async function click(btn) {
   assert(listeners.length === 2, "quest click + retry bound once each");
   assert(listeners.every((l) => l.type === "click"), "both handlers are click");
   assert(listeners[0].fn === onDailyQuestClick, "bound handler is onDailyQuestClick");
+
+  // 2026-11-25: a 03:30 ET check-off writes the training day, not civil today,
+  // and Today / History paint the row the server wrote (workout_log.date).
+  fetches.length = 0;
+  global.showAlert = (m) => {
+    throw new Error("showAlert should not fire on success: " + m);
+  };
+  global.renderHistory = () => {};
+  global.document = {
+    documentElement: { dataset: {} },
+    createElement: (tag) => ({ className: "", textContent: "", tagName: String(tag).toUpperCase() }),
+    querySelector: () => null,
+    addEventListener() {},
+  };
+  global.fetch = async (url, opts) => {
+    fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        workout_log: {
+          ok: true,
+          wrote: true,
+          action: "upsert",
+          name: "Back Extension Machine",
+          session_type: "legs",
+          date: "2026-11-24",
+          exercise: { name: "Back Extension Machine", quest_seeded: true, sets: [{ weight_lbs: 160, sets: 2, reps: 14 }] },
+        },
+      }),
+    };
+  };
+  global.state = {
+    daily_tasks: { summary: { done: 0, total: 3 } },
+    meta: { local_today: "2026-11-25", training_day: "2026-11-24" },
+    coach: { today: { date: "2026-11-25", workout: { session_type: "legs", next_session_type: "legs" } } },
+    sessions: [
+      { date: "2026-11-24", session_type: "legs", exercises: [{ name: "Hack Squat", sets: [{ weight_lbs: 105, sets: 1, reps: 6 }] }] },
+    ],
+  };
+  const lateLift = makeBtn({
+    taskId: "t9",
+    listId: "L1",
+    group: "training",
+    title: "Back Extension Machine (160 lb 2×14)",
+    slug: "ex-back-extension-machine",
+  });
+  await click(lateLift);
+  const lateBody = JSON.parse(fetches[0].body);
+  assert(lateBody.date === undefined, "03:30 check-off sends no civil log date");
+  assert(lateBody.quest_day === "2026-11-25", "quest board day still travels as quest_day");
+  assert(lateBody.training_day === "2026-11-24", "03:30 check-off sends the training day");
+  assert(global.state.sessions.length === 1, "late check-off joins the open training-day session");
+  assert(
+    global.state.sessions[0].date === "2026-11-24" &&
+      global.state.sessions[0].exercises.map((e) => e.name).join(",") === "Hack Squat,Back Extension Machine",
+    "late check-off is painted on the 11/24 legs row"
+  );
+  const paintedLate = loggedExercisesForDay(global.state.sessions, global.questLogDayISO(global.state));
+  assert(paintedLate.length === 2, "Today lists both training-day lifts");
+
+  const noMeta = global.questLogDayISO({ meta: { local_today: "2026-11-25" } });
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(noMeta) && noMeta === global.logDayISO(), "no training_day falls back to logDayISO");
+  assert(global.logDayISO(new Date("2026-11-25T08:30:00Z")) === "2026-11-24", "03:30 ET is the prior training day");
+  assert(global.logDayISO(new Date("2026-11-25T09:00:00Z")) === "2026-11-25", "04:00 ET starts the new training day");
 
   console.log("ok");
 })().catch((err) => {
