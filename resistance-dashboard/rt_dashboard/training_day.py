@@ -282,6 +282,35 @@ def resolve_log_date(
     return raw
 
 
+def default_log_date(
+    training_day: Any = None,
+    *,
+    now: Optional[datetime] = None,
+    last_wake_at: Any = None,
+    tz_name: Optional[str] = None,
+) -> str:
+    """Log date for a write that has no user-picked civil date.
+
+    Quest check-offs use this. The client's ``training_day`` (``meta.training_day``
+    or ``logDayISO()``, the same default the Log form prefills) wins when it is
+    a valid YYYY-MM-DD. Otherwise this is ``resolve_log_date("")``: the training
+    day under the 4 AM cutoff, or the current wake.
+
+    A civil ``local_today`` is never a picker choice here. Only the Log form's
+    ``#log-date`` and history Save date stay authoritative (#771).
+    """
+    raw = str(training_day or "").strip()[:10]
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        try:
+            datetime.strptime(raw, "%Y-%m-%d")
+            return raw
+        except ValueError:
+            pass
+    return resolve_log_date(
+        "", now=now, last_wake_at=last_wake_at, tz_name=tz_name
+    )
+
+
 def session_close_dt(
     session: Any,
     *,

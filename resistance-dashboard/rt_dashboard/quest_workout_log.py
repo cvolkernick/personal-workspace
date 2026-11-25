@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from .models import ExerciseEntry, Session, SetEntry, is_planner_status_exercise_name
@@ -504,22 +505,7 @@ def _default_load_sessions(user_id: str) -> List[Session]:
     return []
 
 
-def quest_log_context(
-    user_id: str,
-    payload: Optional[dict] = None,
-    *,
-    headers: Optional[dict] = None,
-    load_sessions: Optional[Callable[[str], Sequence[Session]]] = None,
-) -> Tuple[str, List[Session], Dict[str, Any]]:
-    """Training-day + sessions + PPL slot for a quest log write.
-
-    Viewer date from payload.date is kept when present (#771 — picker /
-    client civil date is authoritative). Empty date still remaps onto the
-    wake-window training day. session_type prefers an explicit PPL value,
-    then next_session_type — never ``rest``.
-    """
-    payload = payload if isinstance(payload, dict) else {}
-    day = str(payload.get("date") or "")[:10]
+def _quest_tz_name(payload: dict, headers: Optional[dict] = None) -> Optional[str]:
     tz_name = None
     try:
         from api.dashboard import request_tz_name
@@ -527,13 +513,51 @@ def quest_log_context(
         tz_name = request_tz_name(headers or {}, "")
     except Exception:  # noqa: BLE001
         tz_name = None
-    if not day:
-        day = local_today_iso(tz_name)
-    from .training_day import last_wake_from, resolve_log_date
+    if not tz_name:
+        tz_name = str(payload.get("tz") or "").strip() or None
+    return tz_name
 
-    wake = last_wake_from(payload=payload)
-    if wake:
-        day = resolve_log_date(day, last_wake_at=wake, tz_name=tz_name)
+
+def quest_log_day(
+    payload: Optional[dict] = None,
+    *,
+    headers: Optional[dict] = None,
+    now: Optional[datetime] = None,
+) -> str:
+    """Session date a Quest lift check-off writes to. Never civil payload.date."""
+    from .training_day import default_log_date, last_wake_from
+
+    payload = payload if isinstance(payload, dict) else {}
+    return default_log_date(
+        payload.get("training_day"),
+        now=now,
+        last_wake_at=last_wake_from(payload=payload),
+        tz_name=_quest_tz_name(payload, headers),
+    )
+
+
+def quest_log_context(
+    user_id: str,
+    payload: Optional[dict] = None,
+    *,
+    headers: Optional[dict] = None,
+    load_sessions: Optional[Callable[[str], Sequence[Session]]] = None,
+    now: Optional[datetime] = None,
+) -> Tuple[str, List[Session], Dict[str, Any]]:
+    """Training-day + sessions + PPL slot for a quest log write.
+
+    Quest has no date picker. ``payload.date`` is the quest board's civil
+    day (the GT / local leaf key), not a log-date choice, so it is ignored
+    here. The log date is ``training_day.default_log_date``: the client's
+    ``training_day`` when valid, else the 4 AM-cutoff / wake training day.
+    That is the same default the Log form prefills, so a 03:30 ET check-off
+    and a 03:30 ET manual log land on one session (2026-11-24). #771 picker
+    authority applies to ``#log-date`` and history Save date only.
+    session_type prefers an explicit PPL value, then next_session_type —
+    never ``rest``.
+    """
+    payload = payload if isinstance(payload, dict) else {}
+    day = quest_log_day(payload, headers=headers, now=now)
     loader = load_sessions or _default_load_sessions
     try:
         sessions = list(loader(user_id) or [])
@@ -599,7 +623,9 @@ def attach_lift_quest_log(
         }
         return result
 
-    day = str(today or payload.get("date") or local_today_iso())[:10]
+    # The day quest_log_context resolved. Never fall back to the civil
+    # payload.date (quest board day), which skipped the 4 AM cutoff.
+    day = str(today or quest_log_day(payload))[:10]
     try:
         if sessions is None:
             loader = load_sessions or _default_load_sessions
@@ -641,6 +667,10 @@ def attach_lift_quest_log(
                 info["error"] = write.get("error") or "write_failed"
             else:
                 info["wrote"] = True
+        if session is not None:
+            info["date"] = str(session.date)[:10]
+        else:
+            info.setdefault("date", day)
         result["workout_log"] = info
     except Exception as exc:  # noqa: BLE001
         result["workout_log"] = {

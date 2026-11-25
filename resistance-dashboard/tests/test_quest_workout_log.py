@@ -753,6 +753,7 @@ class AttachAndRoute(unittest.TestCase):
                         "title": "DB Flat Press (50 lb 3×10)",
                         "slug": "ex-db-flat-press",
                         "session_type": "push",
+                        "training_day": "2026-08-23",
                     },
                 )
         self.assertEqual(status, 200, body)
@@ -802,7 +803,8 @@ class AttachAndRoute(unittest.TestCase):
                         "group": "training",
                         "title": "DB Flat Press (50 lb 3×10)",
                         "slug": "ex-db-flat-press",
-                        "date": "2026-08-23",
+                        "quest_day": "2026-08-23",
+                        "training_day": "2026-08-23",
                         "session_type": "rest",
                         "next_session_type": "push",
                     },
@@ -988,7 +990,9 @@ class Wiring(unittest.TestCase):
         self.assertIn("todayWo.session_type", handler)
         self.assertIn("pplType", handler)
         self.assertIn("next_session_type:", handler)
-        self.assertIn("date: localToday", handler)
+        self.assertIn("quest_day: localToday", handler)
+        self.assertNotIn("date: localToday", handler)
+        self.assertIn("training_day: questLogDayISO(state)", handler)
         self.assertIn("completed: wantCompleted", handler)
         self.assertIn("looksLikeLiftQuest", handler)
         self.assertIn("applyWorkoutLogToLocalState", handler)

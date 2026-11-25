@@ -230,6 +230,16 @@
     el.value = day;
   }
 
+  /** Default log date for writes without a user-picked date (Quest, Today paint).
+   * Same default the Log form prefills: meta.training_day, else logDayISO()
+   * (4 AM ET cutoff). Never civil meta.local_today (2026-11-25). */
+  function questLogDayISO(data) {
+    const train = data && data.meta && data.meta.training_day;
+    return train && /^\d{4}-\d{2}-\d{2}$/.test(String(train).slice(0, 10))
+      ? String(train).slice(0, 10)
+      : logDayISO();
+  }
+
   /** Fill missing civil days with 0h sleep (sleep debt). End = today. */
   function fillSleepCalendarDays(points, windowDays = 90) {
     const by = {};
@@ -8397,11 +8407,8 @@
     const box = typeof $ === "function" ? $("today-logged-lifts") : null;
     if (!box) return;
     const src = data || state || {};
-    const today = String(
-      (src.meta && src.meta.local_today) ||
-        (src.coach && src.coach.today && src.coach.today.date) ||
-        ""
-    ).slice(0, 10);
+    // Training day, not the civil date: a 03:30 ET lift is on yesterday's row.
+    const today = questLogDayISO(src);
     const lifts = loggedExercisesForDay(src.sessions || [], today);
     if (!lifts.length) {
       box.innerHTML =
@@ -8424,11 +8431,9 @@
     if (log.action !== "uncheck_remove" && log.action !== "upsert" && log.action !== "dedupe") {
       return;
     }
-    const today = String(
-      (state.meta && state.meta.local_today) ||
-        (state.coach && state.coach.today && state.coach.today.date) ||
-        ""
-    ).slice(0, 10);
+    // Paint the row the server wrote (workout_log.date), else the training day.
+    const logDay = String(log.date || "").slice(0, 10);
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(logDay) ? logDay : questLogDayISO(state);
     if (log.action === "uncheck_remove") {
       state.sessions = applyQuestUncheckToSessions(state.sessions || [], log, today);
     } else {
@@ -8505,8 +8510,10 @@
           group: questGroup || null,
           title: questTitle || null,
           slug: questSlug || null,
-          date: localToday || null,
-          training_day: (state && state.meta && state.meta.training_day) || null,
+          // Quest board day (GT / local leaf key) only. The server does not
+          // use it as the log date; lifts land on training_day (4 AM ET).
+          quest_day: localToday || null,
+          training_day: questLogDayISO(state),
           session_type: pplType || todayWo.session_type || null,
           planned_exercises:
             typeof plannedExercisesFromState === "function"
