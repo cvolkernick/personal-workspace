@@ -8880,42 +8880,8 @@
         banner.innerHTML = "";
       }
     }
-    renderWeeklyReview(data);
+    // Weekly review card removed from Trends (2026-11-26). coach.weekly_review stays in the payload and agent feed.
     renderMuscleSets(data);
-  }
-
-  function weeklyReviewRows(review) {
-    if (review && Array.isArray(review.items)) return review.items;
-    const bullets = (review && review.bullets) || [];
-    return bullets.map((b) => ({
-      text: typeof b === "string" ? b : (b && b.text) || "",
-      kind: "observation",
-    }));
-  }
-
-  function weeklyReviewText(row) {
-    if (typeof row === "string") return row;
-    return String((row && row.text) || "");
-  }
-
-  function renderWeeklyReview(data) {
-    const root = $("weekly-review-bullets");
-    if (!root) return;
-    const review = data && data.coach && data.coach.weekly_review;
-    const actions = [];
-    const observations = [];
-    weeklyReviewRows(review).forEach((row) => {
-      if (row && row.kind === "action") actions.push(row);
-      else observations.push(row);
-    });
-    let html = "";
-    if (actions.length) {
-      html += `<li class="weekly-review-focus"><p class="weekly-review-focus-title">Focus this week</p><ul class="weekly-review-actions">${actions
-        .map((row) => `<li>${phaseBaroEsc(weeklyReviewText(row))}</li>`)
-        .join("")}</ul></li>`;
-    }
-    html += observations.map((row) => `<li>${phaseBaroEsc(weeklyReviewText(row))}</li>`).join("");
-    root.innerHTML = html;
   }
 
   function muscleMapColor(rowOrState) {
