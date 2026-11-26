@@ -106,10 +106,10 @@ class TrendsMuscleSetsPlacement(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertIn("/app.js?v=weekly-review-off-1", HTML)
         self.assertIn("/app.js?v=weekly-review-off-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v178"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v179"', SW)
         self.assertNotIn("/app.js?v=muscle-map-1399", HTML)
         self.assertNotIn("/app.js?v=muscle-map-1399", SW)
-        self.assertIn("/styles.css?v=guardrail-gap-1", HTML)
+        self.assertIn("/styles.css?v=guardrail-eq-1", HTML)
 
 
 if __name__ == "__main__":

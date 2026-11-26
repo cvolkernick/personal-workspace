@@ -461,7 +461,7 @@ class ApplyCoachFrontend(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", sw)
         self.assertIn("/app.js?v=weekly-review-off-1", html)
         self.assertIn("/app.js?v=weekly-review-off-1", sw)
-        self.assertIn('const CACHE = "fitdash-shell-v178"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v179"', sw)
         self.assertNotIn("/app.js?v=recipes-dish-1", html)
         self.assertNotIn("/app.js?v=recipes-dish-1", sw)
         self.assertNotIn("fitdash-shell-v100", sw)
