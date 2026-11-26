@@ -19,7 +19,7 @@ class TrendsRhrMarkup(unittest.TestCase):
         self.assertIn('id="chart-rhr"', HTML)
         self.assertIn('id="rhr-trend-note"', HTML)
         self.assertIn("Resting HR (bpm) · 90d", HTML)
-        weekly = HTML.find('id="weekly-review-card"')
+        weekly = HTML.find('id="guardrail-monitor"')
         sleep = HTML.find('id="sleep-trend-card"')
         cals = HTML.find('id="calories-energy-row"')
         vol = HTML.find('id="charts-volume-strength"')
@@ -63,9 +63,9 @@ class TrendsRhrMarkup(unittest.TestCase):
 
     def test_cache_bumped(self):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=phase-check-1", HTML)
-        self.assertIn("/app.js?v=phase-check-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v177"', SW)
+        self.assertIn("/app.js?v=weekly-review-off-1", HTML)
+        self.assertIn("/app.js?v=weekly-review-off-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v178"', SW)
         self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
         self.assertNotIn("fitdash-shell-v108", SW)
         self.assertNotIn("fitdash-shell-v107", SW)

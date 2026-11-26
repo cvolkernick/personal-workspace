@@ -1,4 +1,8 @@
-"""#636 Weekly review card lives at the top of Trends, not Today."""
+"""Weekly review card removed from Trends (2026-11-26, Chris via Frankenfit). Front end only.
+
+History: #636 moved the card to the top of Trends; FF-4 follow-up removes the rendered card.
+The server still builds coach.weekly_review for the payload, the brief and the agent feed.
+"""
 
 from __future__ import annotations
 
@@ -8,84 +12,45 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 JS = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+CSS = (ROOT / "static" / "styles.css").read_text(encoding="utf-8")
 SW = (ROOT / "static" / "sw.js").read_text(encoding="utf-8")
+COACH = (ROOT / "rt_dashboard" / "coach.py").read_text(encoding="utf-8")
 
 
-def _card(src: str) -> str:
-    start = src.find('id="weekly-review-card"')
-    if start < 0:
-        raise AssertionError("weekly-review-card missing")
-    open_idx = src.rfind("<section", 0, start)
-    close_idx = src.find("</section>", start)
-    if open_idx < 0 or close_idx < 0:
-        raise AssertionError("weekly-review-card section bounds failed")
-    return src[open_idx : close_idx + len("</section>")]
+class WeeklyReviewCardRemoved(unittest.TestCase):
+    def test_card_not_rendered(self):
+        self.assertNotIn('id="weekly-review-card"', HTML)
+        self.assertNotIn('id="weekly-review-bullets"', HTML)
+        self.assertNotIn("<h2>Weekly review</h2>", HTML)
+        self.assertNotIn("renderWeeklyReview", JS)
+        self.assertNotIn("weeklyReviewRows", JS)
+        self.assertNotIn("#weekly-review-bullets", CSS)
 
-
-def _fn(src: str, start: str, end: str) -> str:
-    a = src.find(start)
-    b = src.find(end)
-    if a < 0 or b < 0 or b <= a:
-        raise AssertionError(f"slice {start!r} → {end!r} failed")
-    return src[a:b]
-
-
-class WeeklyReviewPlacement(unittest.TestCase):
-    def test_card_is_trends_not_today(self):
-        card = _card(HTML)
-        self.assertIn('data-m-panel="trends"', card)
-        self.assertNotIn('data-m-panel="today"', card)
-        self.assertIn("<h2>Weekly review</h2>", card)
-        self.assertIn('id="weekly-review-bullets"', card)
-
-    def test_first_on_trends(self):
-        weekly = HTML.find('id="weekly-review-card"')
+    def test_trends_order_closes_up(self):
+        guard = HTML.find('id="guardrail-monitor"')
         sleep = HTML.find('id="sleep-trend-card"')
         cals = HTML.find('id="calories-energy-row"')
         vol = HTML.find('id="charts-volume-strength"')
         azm = HTML.find('id="azm-trend-card"')
-        self.assertGreater(weekly, -1)
-        self.assertLess(weekly, sleep, "Weekly review is above Sleep on Trends")
+        self.assertGreater(guard, -1)
+        self.assertLess(guard, sleep, "Sleep follows Guardrails directly")
+        between = HTML[HTML.find("</section>", guard) : HTML.rfind("<section", 0, sleep)]
+        self.assertNotIn("<section", between)
         self.assertLess(sleep, cals)
         self.assertLess(cals, vol)
         self.assertLess(vol, azm)
 
-    def test_today_hub_does_not_include_card(self):
-        hub = _fn(HTML, 'id="today-hub"', 'id="recovery-card"')
-        recovery = _fn(HTML, 'id="recovery-card"', 'id="hydration-pacing-section"')
-        self.assertNotIn("weekly-review-card", hub)
-        self.assertNotIn("weekly-review-card", recovery)
-        self.assertNotIn("weekly-review-bullets", hub)
-        self.assertNotIn("weekly-review-bullets", recovery)
-
-
-class WeeklyReviewBehaviorUnchanged(unittest.TestCase):
-    def test_js_still_fills_bullets_from_coach(self):
-        fill = _fn(JS, "function weeklyReviewRows", "async function phaseBaroAct")
-        self.assertIn("data.coach.weekly_review", fill)
-        self.assertIn("review.items", fill)
-        self.assertIn("review.bullets", fill)
-        self.assertIn("phaseBaroEsc(weeklyReviewText(row))", fill)
-        self.assertIn("Focus this week", fill)
-        self.assertIn("if (actions.length)", fill)
-        self.assertLess(fill.find("if (actions.length)"), fill.find("Focus this week"))
-        self.assertIn("renderWeeklyReview(data)", JS)
-        self.assertNotIn("goMobileTab", fill)
+    def test_server_data_unchanged(self):
+        self.assertIn("weekly_review", COACH)
 
 
 class WeeklyReviewCache(unittest.TestCase):
     def test_cache_bumped(self):
-        self.assertNotIn("/app.js?v=hsa-834-1", SW)
-        self.assertIn("/app.js?v=phase-check-1", HTML)
-        self.assertIn("/app.js?v=phase-check-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v177"', SW)
-        self.assertNotIn("/app.js?v=weekly-review-trends-636-1", HTML)
-        self.assertNotIn("/app.js?v=weekly-review-trends-636-1", SW)
-        self.assertNotIn("/app.js?v=ing-micros-612-1", HTML)
-        self.assertNotIn("/app.js?v=ing-micros-612-1", SW)
-        self.assertNotIn("fitdash-shell-v107", SW)
-        self.assertNotIn("fitdash-shell-v105", SW)
-        self.assertNotIn("fitdash-shell-v104", SW)
+        self.assertIn("/app.js?v=weekly-review-off-1", HTML)
+        self.assertIn("/app.js?v=weekly-review-off-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v178"', SW)
+        self.assertNotIn("/app.js?v=phase-check-1", SW)
+        self.assertNotIn("fitdash-shell-v177", SW)
 
 
 if __name__ == "__main__":

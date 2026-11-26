@@ -428,7 +428,7 @@ class TodayErrorBannerStays(unittest.TestCase):
         sw = Path(__file__).resolve().parents[1].joinpath("static", "sw.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('const CACHE = "fitdash-shell-v177"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v178"', sw)
 
 
 if __name__ == "__main__":
