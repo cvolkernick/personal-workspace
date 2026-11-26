@@ -176,15 +176,11 @@ class WeeklyReviewKinds(unittest.TestCase):
 
 
 class WeeklyReviewMarkup(unittest.TestCase):
-    def test_action_block_is_accented_and_omitted_when_empty(self):
-        fn = JS.split("function renderWeeklyReview", 1)[1].split("async function phaseBaroAct", 1)[0]
-        self.assertIn("weekly-review-focus", fn)
-        self.assertIn("weekly-review-actions", fn)
-        self.assertLess(fn.find("if (actions.length)"), fn.find("Focus this week"))
-        self.assertIn("#weekly-review-bullets > .weekly-review-focus", CSS)
-        self.assertIn("border-left: 3px solid var(--accent)", CSS)
-        self.assertIn("font-weight: 650", CSS)
-        self.assertIn("@media (max-width: 560px)", CSS)
+    def test_trends_card_removed_front_end_only(self):
+        # 2026-11-26: the Trends card is gone; the server brief above still carries the review.
+        self.assertNotIn("function renderWeeklyReview", JS)
+        self.assertNotIn("weekly-review-focus", JS)
+        self.assertNotIn("#weekly-review-bullets", CSS)
 
 
 if __name__ == "__main__":
