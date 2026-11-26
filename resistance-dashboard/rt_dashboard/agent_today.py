@@ -1248,6 +1248,7 @@ def _export_agent_today_body(
         "nutrition": _nutrition_today(data, day, targets),
         "restock": _restock_today(today_board),
     }
+    today.update(_body_today(data, day))
     week = (
         _empty_week()
         if not week_start
@@ -1311,6 +1312,45 @@ def _export_agent_today_body(
         out["coach_card"] = coach_card_for_payload(data, as_of=day or None)
     except Exception:  # noqa: BLE001
         out["coach_card"] = None
+    return out
+
+
+def _body_today(data: Dict[str, Any], day: str) -> Dict[str, Any]:
+    """Latest weigh-in and body fat on or before ``day``. Nullable; never invented (FF-4)."""
+    out: Dict[str, Any] = {
+        "bodyweight_lbs": None,
+        "bodyweight_date": None,
+        "body_fat_pct": None,
+        "body_fat_date": None,
+        "body_fat_14d_avg": None,
+    }
+    health = _as_dict(data.get("health"))
+    if not day:
+        return out
+    try:
+        from .coach_weekly import daily_bodyweight
+
+        weights = [row for d, row in daily_bodyweight(health).items() if d <= day]
+        if weights:
+            latest = max(weights, key=lambda row: row["date"])
+            out["bodyweight_lbs"] = latest["weight_lbs"]
+            out["bodyweight_date"] = latest["date"]
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from .phase_check import _bfp, bf_avg_14d
+
+        bfp = _bfp()
+        samples = health.get("body_fat") or []
+        rows = [row for row in bfp.dedupe_twins(bfp.measurements(samples)) if row["date"] <= day]
+        if rows:
+            last = rows[-1]
+            out["body_fat_pct"] = last["percentage"]
+            out["body_fat_date"] = last["date"]
+        avg = bf_avg_14d(samples, day)["value"]
+        out["body_fat_14d_avg"] = None if avg is None else round(float(avg), 2)
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 

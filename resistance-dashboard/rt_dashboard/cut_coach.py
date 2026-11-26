@@ -707,6 +707,7 @@ def coach_card_for_payload(payload: Optional[dict], *, as_of: Any = None) -> dic
     card["bf_phase"] = block
     report = block.get("phase_report") if isinstance(block, dict) else None
     card["phase_report"] = report if isinstance(report, dict) else None
+    card["phase_check"] = _phase_check_block(data, card, block)
     return card
 
 
@@ -727,7 +728,10 @@ def agent_phase_body(payload: Optional[dict], *, as_of: Any = None) -> dict:
     """Structured phase for ``GET /api/agent/phase`` and MCP ``get_phase``."""
     card = coach_card_for_payload(payload, as_of=as_of)
     report = card.get("phase_report") if isinstance(card.get("phase_report"), dict) else {}
-    return {"ok": True, "as_of": card.get("as_of"), **report}
+    body = {"ok": True, "as_of": card.get("as_of"), **report}
+    if isinstance(card.get("phase_check"), dict):
+        body["phase_check"] = card["phase_check"]
+    return body
 
 
 def agent_coach_card_body(payload: Optional[dict], *, as_of: Any = None) -> dict:
@@ -738,6 +742,16 @@ def agent_coach_card_body(payload: Optional[dict], *, as_of: Any = None) -> dict
     if report is not None:
         body["phase_report"] = report
     return body
+
+
+def _phase_check_block(data: dict, card: dict, block: Optional[dict]) -> Optional[dict]:
+    """Display-only Phase check (FF-4). Reads ``bf_phase``; never writes targets."""
+    try:
+        from .phase_check import build_phase_check
+
+        return build_phase_check(data, card, block)
+    except Exception:
+        return None
 
 
 def _bf_phase_block(data: dict, day_s: str, card: dict) -> Optional[dict]:
