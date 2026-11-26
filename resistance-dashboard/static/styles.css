@@ -4883,7 +4883,7 @@ body.m-shell #alerts {
 
 .guardrail-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
   margin-top: 0.75rem;
 }
@@ -5145,12 +5145,10 @@ body.m-shell #alerts {
   grid-column: 1 / -1;
   padding: 14px;
 }
-/* FF-4 gap fix (2026-11-26): with Progression off screen, Tonnage | Main lifts | Scale
-   left an empty cell next to Scale. Desktop (4 columns): Scale spans the last two cells.
-   Mobile (2 columns): Scale takes the full row, same as Phase check. Display only. */
-.guardrail-grid > .guardrail-tile[data-guardrail="scale"] {
-  grid-column: span 2;
-}
+/* Equal-width Guardrails tiles (2026-11-26): at >=561px the grid is 3 equal
+   columns (Tonnage | Main lifts | Scale). Scale no longer spans 2. Phone
+   (<=560px) stays 2 columns with Scale full width, same as v178. Phase check
+   stays a full-width row under the tiles. Display only. */
 @media (max-width: 560px) {
   .guardrail-grid > .guardrail-tile[data-guardrail="scale"] {
     grid-column: 1 / -1;
