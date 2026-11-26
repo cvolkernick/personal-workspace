@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=muscle-map-1399" />
+    <link rel="stylesheet" href="/styles.css?v=phase-check-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=recipe-planner-1288-2" defer></script>
@@ -27,7 +27,8 @@
     <script src="/biomarkers.js?v=labs-off-today-1" defer></script>
     <script src="/trends-steps.js?v=steps-2" defer></script>
     <script src="/body-fat-series.js?v=bf-phase-14d-1" defer></script>
-    <script src="/app.js?v=bf-14d-avg-1" defer></script>
+    <script src="/phase-check.js?v=phase-check-1" defer></script>
+    <script src="/app.js?v=phase-check-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -979,11 +980,7 @@
           <div id="coach-phase-card" aria-label="Coach phase" hidden>
             <div id="bf-phase-banner-coach" class="phase-baro-banner" hidden data-bf-phase-surface="coach"></div>
             <p id="coach-phase-pill" class="coach-pill"></p>
-            <p id="coach-bf-avg" class="muted" style="margin-top: 0.35rem"></p>
-            <p id="coach-bf-threshold" class="muted" style="margin-top: 0.15rem"></p>
-            <p id="coach-bf-streak" class="coach-pill" style="margin-top: 0.35rem"></p>
-            <p id="coach-bf-median14" class="muted" style="margin-top: 0.15rem"></p>
-            <p id="coach-bf-thin" class="coach-pill" hidden></p>
+            <p id="coach-bf-line" style="margin-top: 0.35rem" hidden></p>
             <p id="coach-bf-last" class="muted" hidden></p>
             <p id="coach-bf-proposal" class="muted" hidden></p>
             <p id="coach-rate-chip" class="muted" style="margin-top: 0.35rem"></p>
@@ -1528,9 +1525,9 @@
             <dt><code>get_coaching_targets</code> · read</dt>
             <dd>Effective steps, kcal, and hydration_ml for as_of, each with its value and whether a settings override or the phase calendar supplied it.</dd>
             <dt><code>get_coach_card</code> · read</dt>
-            <dd>Coach card JSON, including phase_report: phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, and targets (calories, protein_g, carbs_g, fat_g, phase).</dd>
+            <dd>Coach card JSON, including phase_report: phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, and targets (calories, protein_g, carbs_g, fat_g, phase), and phase_check (Phase check card: hits of hits_needed, counted, median_7d, median_14d, bf_avg_14d, earliest_switch_date, on_switch and ramp calories from the live TDEE, weight_rate, lifts, labs, and applies_automatically: true, meaning FitDash switches the phase by itself when the rule is met).</dd>
             <dt><code>get_phase</code> · read</dt>
-            <dd>phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, status, threshold_label, auto_flip, as_of, and targets (calories, protein_g, carbs_g, fat_g, phase).</dd>
+            <dd>phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, status, threshold_label, auto_flip, as_of, and targets (calories, protein_g, carbs_g, fat_g, phase), plus the same phase_check block (applies_automatically: true: the switch happens automatically).</dd>
             <dt><code>set_coaching_target</code> · write, not available from this page</dt>
             <dd>Writes one override for steps, kcal, or hydration_ml (null clears it) and returns the updated effective targets. This page does not call it.</dd>
           </dl>

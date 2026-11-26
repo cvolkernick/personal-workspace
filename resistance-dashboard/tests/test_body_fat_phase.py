@@ -757,25 +757,25 @@ class PhaseReportThin(_WriterCase):
 
 class CoachCardUi(unittest.TestCase):
     def test_phase_card_shows_median_count_threshold_and_banners(self):
-        self.assertIn('id="coach-bf-avg"', HTML)
-        self.assertIn('id="coach-bf-threshold"', HTML)
-        self.assertIn('id="coach-bf-streak"', HTML)
-        self.assertIn('id="coach-bf-median14"', HTML)
-        self.assertIn('id="coach-bf-thin"', HTML)
+        # FF-4: one Phase check line replaces the avg/threshold/streak/median14/thin lines.
+        self.assertIn('id="coach-bf-line"', HTML)
+        for gone in ("coach-bf-avg", "coach-bf-threshold", "coach-bf-streak", "coach-bf-median14", "coach-bf-thin"):
+            self.assertNotIn(f'id="{gone}"', HTML)
         self.assertIn('id="coach-bf-last"', HTML)
         self.assertIn('id="bf-phase-banner"', HTML)
         self.assertIn('id="bf-phase-banner-coach"', HTML)
         today = HTML[HTML.index('id="today-hub"'): HTML.index('id="today-hub"') + 2500]
         self.assertIn('id="bf-phase-banner"', today)
-        self.assertNotIn('id="coach-bf-avg"', today)
+        self.assertNotIn('id="coach-bf-line"', today)
         proposal = HTML[HTML.index('id="coach-bf-proposal"'): HTML.index('id="coach-bf-proposal"') + 80]
         self.assertNotIn("<button", proposal)
-        self.assertIn("7-day BF median", APP)
-        self.assertIn("14-day median", APP)
-        self.assertIn("of last 14 counted days", APP)
-        self.assertIn("BF data thin", APP)
-        self.assertIn("≤10%", APP)
-        self.assertIn("≥15%", APP)
+        self.assertIn("api.coachLine(phaseCheck)", APP)
+        pc_js = (Path(__file__).resolve().parents[1] / "static" / "phase-check.js").read_text(encoding="utf-8")
+        self.assertIn("14-day body fat median", pc_js)
+        self.assertIn("7-day median", pc_js)
+        self.assertIn(" · held ", pc_js)
+        self.assertIn("≤", pc_js)
+        self.assertIn("≥", pc_js)
         self.assertIn("dismiss_bf_banner", APP)
         self.assertIn("Last flip:", APP)
         self.assertNotIn("Proposed: switch to BULK", APP)

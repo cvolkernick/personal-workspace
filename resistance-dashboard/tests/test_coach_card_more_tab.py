@@ -32,9 +32,7 @@ class CoachCardMoreTab(unittest.TestCase):
             for sid in (
                 "coach-phase-card",
                 "coach-phase-pill",
-                "coach-bf-avg",
-                "coach-bf-streak",
-                "coach-bf-thin",
+                "coach-bf-line",
                 "coach-bf-proposal",
                 "coach-sat-fat-chip",
                 "coach-staged-panel",
@@ -52,11 +50,7 @@ class CoachCardMoreTab(unittest.TestCase):
         for sid in (
             "coach-phase-card",
             "coach-phase-pill",
-            "coach-bf-avg",
-            "coach-bf-threshold",
-            "coach-bf-streak",
-            "coach-bf-median14",
-            "coach-bf-thin",
+            "coach-bf-line",
             "coach-bf-last",
             "coach-bf-proposal",
             "bf-phase-banner-coach",

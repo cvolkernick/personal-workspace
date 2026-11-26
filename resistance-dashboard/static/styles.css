@@ -5174,3 +5174,159 @@ body.m-shell #alerts {
 }
 .body-region:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .muscle-body-map-detail { margin: 0.45rem 0 0; font-size: 0.85rem; min-height: 1.2em; }
+
+/* FF-4 Phase check (Trends → Guardrails, full-width row in place of Progression). Display only. */
+.guardrail-tile.phase-check-tile {
+  grid-column: 1 / -1;
+  padding: 14px;
+}
+.phase-check-tile .pc-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 10px;
+}
+.phase-check-tile .pc-title {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.phase-check-tile .pc-pills {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.phase-check-tile .pc-pill {
+  font-size: 12px;
+  font-weight: 650;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(61, 156, 240, 0.16);
+  color: var(--accent);
+  border: 1px solid rgba(61, 156, 240, 0.4);
+}
+.phase-check-tile .pc-state {
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(92, 225, 168, 0.14);
+  color: var(--accent-2);
+  border: 1px solid rgba(92, 225, 168, 0.35);
+}
+.phase-check-tile .pc-state.pc-state-approaching,
+.phase-check-tile .pc-state.pc-state-not_enough_data {
+  background: rgba(240, 180, 41, 0.12);
+  color: var(--warn);
+  border-color: rgba(240, 180, 41, 0.35);
+}
+.phase-check-tile .pc-state.pc-state-far {
+  background: var(--bg-elevated);
+  color: var(--muted);
+  border-color: var(--border);
+}
+.phase-check-tile .pc-state.pc-state-switched {
+  background: rgba(61, 156, 240, 0.16);
+  color: var(--accent);
+  border-color: rgba(61, 156, 240, 0.4);
+}
+.phase-check-tile .pc-big {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+.phase-check-tile .pc-big small {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.phase-check-tile .pc-sub {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.phase-check-tile .pc-tgt {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.phase-check-tile .pc-tgt b {
+  color: var(--accent-2);
+}
+.phase-check-tile .pc-barlbl {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  margin: 12px 0 5px;
+  color: var(--text);
+}
+.phase-check-tile .pc-barlbl span:last-child {
+  color: var(--muted);
+}
+.phase-check-tile .pc-bar {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 3px;
+}
+.phase-check-tile .pc-seg {
+  height: 12px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.phase-check-tile .pc-seg.on {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+.phase-check-tile .pc-auto {
+  margin-top: 12px;
+  background: rgba(240, 180, 41, 0.08);
+  border: 1px solid rgba(240, 180, 41, 0.35);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.phase-check-tile .pc-auto b {
+  color: var(--warn);
+}
+.phase-check-tile .pc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+}
+.phase-check-tile .pc-chip {
+  font-size: 11.5px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.phase-check-tile .pc-chip .k {
+  color: var(--muted);
+}
+.phase-check-tile .pc-y {
+  color: var(--warn);
+}
+.phase-check-tile .pc-g {
+  color: var(--accent-2);
+}
+.phase-check-tile .pc-r {
+  color: var(--danger);
+}
+.phase-check-tile .pc-cav {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+#coach-bf-line {
+  font-weight: 650;
+}

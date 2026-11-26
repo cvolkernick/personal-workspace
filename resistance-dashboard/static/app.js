@@ -5321,52 +5321,26 @@
     }
   }
 
-  function renderBfPhase(bf) {
-    const avg = $("coach-bf-avg");
-    const thr = $("coach-bf-threshold");
-    const streak = $("coach-bf-streak");
-    const median14 = $("coach-bf-median14");
-    const thin = $("coach-bf-thin");
+  function renderBfPhase(bf, phaseCheck) {
+    // FF-4: one line (same block as the Trends Phase check card) replaces the
+    // old avg / threshold / streak / 14-day median / thin lines.
+    const line = $("coach-bf-line");
     const last = $("coach-bf-last");
     const proposal = $("coach-bf-proposal");
     renderBfBanners(bf);
     if (!bf) {
-      [avg, thr, streak, median14, thin, last, proposal].forEach((el) => {
+      [line, last, proposal].forEach((el) => {
         if (!el) return;
         el.hidden = true;
         el.textContent = "";
       });
       return;
     }
-    const phase = bfPhaseLabel(bf);
-    if (avg) {
-      avg.hidden = false;
-      if (bf.thin) {
-        avg.textContent = `Phase ${phase} · 7-day BF median thin`;
-      } else {
-        const readings = bf.n_readings_7d == null ? 0 : bf.n_readings_7d;
-        const days = bf.n_days_7d == null ? 0 : bf.n_days_7d;
-        avg.textContent = `Phase ${phase} · 7-day BF median ${bfMedianText(bf.median_7d)}% (${readings} readings, ${days} days)`;
-      }
-    }
-    if (thr) {
-      thr.hidden = false;
-      const bound = bf.phase === "bulk" ? "≥15%" : "≤10%";
-      thr.textContent = bf.threshold_label ? `${bf.threshold_label} · ${bound}` : bound;
-    }
-    if (streak) {
-      streak.hidden = false;
-      streak.textContent = bfCountText(bf);
-    }
-    if (median14) {
-      median14.hidden = false;
-      const shown = bf.median_14d == null ? "—" : `${bfMedianText(bf.median_14d)}%`;
-      median14.textContent = `14-day median ${shown}`;
-    }
-    if (thin) {
-      const show = !!bf.thin;
-      thin.hidden = !show;
-      thin.textContent = show ? "BF data thin" : "";
+    if (line) {
+      const api = typeof FitDashPhaseCheck !== "undefined" ? FitDashPhaseCheck : null;
+      const text = api && phaseCheck ? api.coachLine(phaseCheck) : "";
+      line.hidden = !text;
+      line.textContent = text;
     }
     if (last) {
       const flip = bf.last_flip;
@@ -5394,7 +5368,7 @@
     root.hidden = false;
     const pill = $("coach-phase-pill");
     if (pill) pill.textContent = card.phase_pill || "";
-    renderBfPhase(card.bf_phase);
+    renderBfPhase(card.bf_phase, card.phase_check);
     const chip = $("coach-rate-chip");
     if (chip) chip.textContent = card.rate_chip || "";
     const kcal = $("coach-kcal-indicator");
@@ -9127,11 +9101,22 @@
     if (!root) return;
     const guard = data && data.guardrails;
     const tiles = guard && Array.isArray(guard.tiles) ? guard.tiles : [];
-    if (!tiles.length) {
+    // FF-4 (2026-11-26): Phase check replaces the Progression (flag) tile on
+    // screen only. guardrails.tiles / guardrails.flag stay in the payload for
+    // agents and the export. No phase_check → no tile, never Progression.
+    const shown = tiles.filter((tile) => !(tile && tile.id === "flag"));
+    const phaseCheck = guardrailPhaseCheckHtml(data && data.coach_card && data.coach_card.phase_check);
+    if (!shown.length && !phaseCheck) {
       root.innerHTML = '<p class="guardrail-note">Not enough data.</p>';
       return;
     }
-    root.innerHTML = tiles.map(guardrailTileHtml).join("");
+    root.innerHTML = shown.map(guardrailTileHtml).join("") + phaseCheck;
+  }
+
+  function guardrailPhaseCheckHtml(pc) {
+    const api = typeof FitDashPhaseCheck !== "undefined" ? FitDashPhaseCheck : null;
+    if (!api || !pc) return "";
+    return api.cardHtml(pc);
   }
 
   function guardrailTileHtml(tile) {

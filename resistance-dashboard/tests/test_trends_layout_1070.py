@@ -108,9 +108,9 @@ class TrendsLayout1070(unittest.TestCase):
         self.assertNotIn("#azm-rhr-row", CSS)
 
     def test_cache_bumped(self):
-        self.assertIn('const CACHE = "fitdash-shell-v176"', SW)
-        self.assertIn("/app.js?v=bf-14d-avg-1", HTML)
-        self.assertIn("/app.js?v=bf-14d-avg-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v177"', SW)
+        self.assertIn("/app.js?v=phase-check-1", HTML)
+        self.assertIn("/app.js?v=phase-check-1", SW)
         self.assertNotIn("/app.js?v=recipe-dishes-1069-1", HTML)
         self.assertNotIn("/app.js?v=recipe-dishes-1069-1", SW)
         self.assertNotIn("fitdash-shell-v134", SW)
