@@ -102,7 +102,10 @@ TOOL_CATALOG = (
         "returns": (
             "Coach card JSON, including phase_report: phase (cut or bulk), median_7d, hits, hits_needed, "
             "counted, counted_needed, median_14d, thin, paused, flip_applied, flip_date, flip_trigger, "
-            "and targets (calories, protein_g, carbs_g, fat_g, phase)."
+            "and targets (calories, protein_g, carbs_g, fat_g, phase), and phase_check (Phase check card: "
+            "hits of hits_needed, counted, median_7d, median_14d, bf_avg_14d, earliest_switch_date, on_switch "
+            "and ramp calories from the live TDEE, weight_rate, lifts, labs, and applies_automatically: true, "
+            "meaning FitDash switches the phase by itself when the rule is met)."
         ),
     },
     {
@@ -111,7 +114,8 @@ TOOL_CATALOG = (
         "returns": (
             "phase (cut or bulk), median_7d, hits, hits_needed, counted, counted_needed, median_14d, "
             "thin, paused, flip_applied, flip_date, flip_trigger, status, threshold_label, auto_flip, as_of, "
-            "and targets (calories, protein_g, carbs_g, fat_g, phase)."
+            "and targets (calories, protein_g, carbs_g, fat_g, phase), plus the same phase_check block "
+            "(applies_automatically: true: the switch happens automatically)."
         ),
     },
     {
@@ -370,6 +374,9 @@ def build_server():
         phase_report has phase (cut or bulk), median_7d, hits out of
         hits_needed, counted out of counted_needed, median_14d, thin,
         paused, flip_applied, flip_date, and calorie/macro targets.
+        phase_check is the Phase check card (counter, earliest switch date,
+        switch and ramp calories). applies_automatically is true: FitDash
+        switches the phase by itself when the body-fat rule is met.
         as_of is YYYY-MM-DD; omit it for the server's local today.
         """
         return fetch_coach_card(as_of)
@@ -380,7 +387,9 @@ def build_server():
 
         Returns phase, median_7d, hits, hits_needed, counted,
         counted_needed, median_14d, thin, paused, flip_applied, flip_date,
-        flip_trigger, and targets (calories, protein_g, carbs_g, fat_g, phase).
+        flip_trigger, and targets (calories, protein_g, carbs_g, fat_g, phase),
+        plus phase_check. applies_automatically is true: the switch is applied
+        automatically when the rule is met.
         as_of is YYYY-MM-DD; omit it for the server's local today.
         """
         return fetch_phase(as_of)
