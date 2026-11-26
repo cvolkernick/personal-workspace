@@ -505,20 +505,20 @@ class StaticAssets(unittest.TestCase):
         self.assertTrue(server.accepts_gzip("gzip, br"))
         self.assertTrue(server.accepts_gzip("gzip;q=0.5"))
         self.assertTrue(server.accepts_gzip("*;q=1"))
-        h = self._handler("/app.js?v=phase-check-1", {"Accept-Encoding": "gzip;q=0"})
+        h = self._handler("/app.js?v=weekly-review-off-1", {"Accept-Encoding": "gzip;q=0"})
         with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
             body = h.send_head()
         hd = self._headers(h)
         self.assertNotIn("Content-Encoding", hd)
         self.assertEqual(body.read(), (Path(h.directory) / "app.js").read_bytes())
-        h_ok = self._handler("/app.js?v=phase-check-1", {"Accept-Encoding": "gzip;q=0.8, identity;q=0.1"})
+        h_ok = self._handler("/app.js?v=weekly-review-off-1", {"Accept-Encoding": "gzip;q=0.8, identity;q=0.1"})
         with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
             packed = h_ok.send_head()
         self.assertEqual(self._headers(h_ok)["Content-Encoding"], "gzip")
         self.assertEqual(gzip.decompress(packed.read()), (Path(h.directory) / "app.js").read_bytes())
 
     def test_versioned_js_gzip_immutable_and_304(self):
-        h = self._handler("/app.js?v=phase-check-1", {"Accept-Encoding": "gzip, br"})
+        h = self._handler("/app.js?v=weekly-review-off-1", {"Accept-Encoding": "gzip, br"})
         with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
             f = h.send_head()
         hd = self._headers(h)
@@ -527,7 +527,7 @@ class StaticAssets(unittest.TestCase):
         body = gzip.decompress(f.read())
         self.assertEqual(body, (Path(h.directory) / "app.js").read_bytes())
         etag = hd["ETag"]
-        h2 = self._handler("/app.js?v=phase-check-1", {"Accept-Encoding": "gzip", "If-None-Match": etag})
+        h2 = self._handler("/app.js?v=weekly-review-off-1", {"Accept-Encoding": "gzip", "If-None-Match": etag})
         with mock.patch("http.server.BaseHTTPRequestHandler.end_headers", lambda self: None):
             self.assertIsNone(h2.send_head())
         self.assertIn(("status", 304), h2.sent)
@@ -552,7 +552,7 @@ class StaticAssets(unittest.TestCase):
         sw = (ROOT / "static" / "sw.js").read_text()
         for asset in re.findall(r'(?:src|href)="(/[^"]+\?v=[^"]+)"', idx):
             self.assertIn(f'"{asset}"', sw)
-        self.assertIn('const CACHE = "fitdash-shell-v177"', sw)
+        self.assertIn('const CACHE = "fitdash-shell-v178"', sw)
         self.assertIn('url.searchParams.has("v")', sw)
 
 
