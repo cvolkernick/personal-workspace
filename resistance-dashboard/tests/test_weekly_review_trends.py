@@ -48,7 +48,7 @@ class WeeklyReviewCache(unittest.TestCase):
     def test_cache_bumped(self):
         self.assertIn("/app.js?v=weekly-review-off-1", HTML)
         self.assertIn("/app.js?v=weekly-review-off-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v178"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v179"', SW)
         self.assertNotIn("/app.js?v=phase-check-1", SW)
         self.assertNotIn("fitdash-shell-v177", SW)
 

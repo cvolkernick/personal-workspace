@@ -36,8 +36,8 @@
     "v": "phase-check-1"
   },
   "styles.css": {
-    "sha256": "7f1700d5acd4cb0e263931c6e27bdb1c9f792e8a55d6960896524e7dc5851071",
-    "v": "guardrail-gap-1"
+    "sha256": "21d10699967f6dd2c2e7d6ad7d68399daff32234aee159f9ccbf7a14e5f34b73",
+    "v": "guardrail-eq-1"
   },
   "supergrok.js": {
     "sha256": "a8305965e54ca1659362eb7169fe7b0a61cd9579f4ccbf746ae3f0f2f4018139",
