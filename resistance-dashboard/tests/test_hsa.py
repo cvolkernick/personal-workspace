@@ -280,7 +280,7 @@ class TestMarkupAndRoutes(unittest.TestCase):
         self.assertNotIn("/app.js?v=hsa-834-1", SW)
         self.assertIn("/app.js?v=weekly-review-off-1", HTML)
         self.assertIn("/app.js?v=weekly-review-off-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v178"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v179"', SW)
         self.assertNotIn("nutrition-day-828-1", HTML)
         self.assertNotIn("fitdash-shell-v110", SW)
 
