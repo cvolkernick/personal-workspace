@@ -126,7 +126,7 @@ class WindowMath(unittest.TestCase):
 
 class CountedRule(unittest.TestCase):
     def test_fourteen_counted_days_flip_and_thirteen_hold(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         end = rows[-1]["date"]
         flipped = bf.evaluate(rows, as_of=end, phase="cut")
         self.assertEqual(flipped["counted"], 14)
@@ -134,10 +134,10 @@ class CountedRule(unittest.TestCase):
         self.assertEqual(flipped["hits_needed"], 12)
         self.assertTrue(flipped["should_flip"])
         self.assertEqual(flipped["status"], "flip")
-        self.assertAlmostEqual(flipped["median_7d"], 9.5)
-        self.assertAlmostEqual(flipped["median_14d"], 9.5)
+        self.assertAlmostEqual(flipped["median_7d"], 7.0)
+        self.assertAlmostEqual(flipped["median_14d"], 7.0)
         self.assertEqual(flipped["phase"], "cut")
-        short = _series("2026-10-29", 16, 10.0)
+        short = _series("2026-10-29", 16, 7.0)
         held = bf.evaluate(short, as_of=short[-1]["date"], phase="cut")
         self.assertEqual(held["counted"], 13)
         self.assertEqual(held["hits"], 13)
@@ -146,10 +146,10 @@ class CountedRule(unittest.TestCase):
         self.assertIsNone(held["median_14d"])
 
     def test_day_13_outlier_does_not_reset(self):
-        """One counted day above 10% is a miss. The other 13 still count, and 13 >= 12 flips."""
+        """One counted day above 7.5% is a miss. The other 13 still count, and 13 >= 12 flips."""
         today = "2026-11-20"
         hist_end = bf.add_days(today, -7)
-        rows = _series(bf.add_days(hist_end, -40), 41, 9.0) + _readings(today, 4, 12.0)
+        rows = _series(bf.add_days(hist_end, -40), 41, 7.0) + _readings(today, 4, 12.0)
         self.assertEqual(rows[-5]["date"], hist_end)
         out = bf.evaluate(rows, as_of=today, phase="cut")
         self.assertEqual(out["counted"], 14)
@@ -158,14 +158,14 @@ class CountedRule(unittest.TestCase):
         misses = [row for row in out["counted_days"] if not row["past"]]
         self.assertEqual([row["date"] for row in misses], [today])
         self.assertAlmostEqual(misses[0]["median"], 12.0)
-        self.assertAlmostEqual(out["median_14d"], 9.0)
+        self.assertAlmostEqual(out["median_14d"], 7.0)
         self.assertTrue(out["should_flip"])
         self.assertEqual(out["status"], "flip")
 
     def test_eleven_hits_hold_without_resetting(self):
         end = "2026-11-20"
         low_end = bf.add_days(end, -10)
-        rows = _series(bf.add_days(low_end, -30), 31, 9.0)
+        rows = _series(bf.add_days(low_end, -30), 31, 7.0)
         for day in (bf.add_days(end, -2), bf.add_days(end, -1), end):
             rows.extend(_readings(day, 4, 12.0))
         out = bf.evaluate(rows, as_of=end, phase="cut")
@@ -176,7 +176,7 @@ class CountedRule(unittest.TestCase):
         self.assertEqual(out["status"], "hold")
 
     def test_thin_day_pauses_and_the_window_stretches(self):
-        rows = [row for row in _series("2026-09-01", 70, 9.0) if row["date"] not in set(_days("2026-10-10", 8))]
+        rows = [row for row in _series("2026-09-01", 70, 7.0) if row["date"] not in set(_days("2026-10-10", 8))]
         out = bf.evaluate(rows, as_of="2026-10-30", phase="cut")
         dates = [row["date"] for row in out["counted_days"]]
         self.assertTrue(bf.window_stats(rows, "2026-10-17")["thin"])
@@ -201,14 +201,32 @@ class CountedRule(unittest.TestCase):
         self.assertFalse(flat["should_flip"])
         self.assertEqual(flat["phase"], "bulk")
 
+    def test_cut_bound_is_seven_point_five(self):
+        self.assertEqual(bf.CUT_AT, 7.5)
+        self.assertEqual(bf.BULK_AT, 15.0)
+        self.assertEqual(bf.threshold_label("cut"), f"Bulk at <={bf.CUT_AT:.1f}%")
+        self.assertEqual(bf.threshold_label("bulk"), f"Cut at >={bf.BULK_AT:.1f}%")
+        self.assertNotIn("10.0%", bf.threshold_label("cut"))
+        self.assertNotIn("<=10%", bf.threshold_label("cut"))
+        rows = _series("2026-10-01", 40, 7.5)
+        out = bf.evaluate(rows, as_of=rows[-1]["date"], phase="cut")
+        self.assertEqual(out["threshold_label"], "Bulk at <=7.5%")
+        self.assertEqual(out["hits"], 14)
+        self.assertTrue(out["should_flip"])
+        for value in (7.6, 9.5, 10.0):
+            miss = bf.evaluate(_series("2026-10-01", 40, value), as_of=_days("2026-10-01", 40)[-1], phase="cut")
+            self.assertEqual(miss["hits"], 0, value)
+            self.assertFalse(miss["should_flip"], value)
+            self.assertEqual(miss["phase"], "cut")
+
     def test_anchor_drops_days_on_and_before_the_flip(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         end = rows[-1]["date"]
         out = bf.evaluate(rows, as_of=end, phase="cut", anchor=end)
         self.assertEqual(out["counted"], 0)
         self.assertFalse(out["should_flip"])
         nxt = bf.add_days(end, 1)
-        later = bf.evaluate(rows + _series(nxt, 1, 9.5), as_of=nxt, phase="bulk", anchor=end)
+        later = bf.evaluate(rows + _series(nxt, 1, 7.0), as_of=nxt, phase="bulk", anchor=end)
         self.assertTrue(all(row["date"] > end for row in later["counted_days"]))
         self.assertLess(later["counted"], 14)
         self.assertFalse(later["should_flip"])
@@ -274,7 +292,7 @@ class AutoApply(_WriterCase):
         self.assertIn('base["phase"] = raw_phase', SERVER)
 
     def test_cut_to_bulk_writes_maintenance_then_plus_200_on_day_14(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         first = bf.run_phase(
             rows, as_of=as_of, phase="cut", tdee=2318, applied=dict(CUT_LIVE), user_id="u", apply=True
@@ -316,7 +334,7 @@ class AutoApply(_WriterCase):
         self.assertEqual(again["anchor"], as_of)
 
         nxt = bf.add_days(as_of, 1)
-        nxt_rows = rows + _series(nxt, 1, 9.5)
+        nxt_rows = rows + _series(nxt, 1, 7.0)
         following = bf.run_phase(
             nxt_rows,
             as_of=nxt,
@@ -367,7 +385,7 @@ class AutoApply(_WriterCase):
         self.assertEqual(self._targets()["calories"], 2500)
 
     def test_bulk_to_cut_restores_stored_cut_targets(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         bf.run_phase(rows, as_of=as_of, phase="cut", tdee=2318, applied=dict(CUT_LIVE), user_id="u", apply=True)
         high = _series(bf.add_days(as_of, 1), 30, 16.0)
@@ -392,7 +410,7 @@ class AutoApply(_WriterCase):
         self.assertEqual(restored["fat_g"], 55)
 
     def test_two_requests_same_day_write_once(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         barrier = threading.Barrier(2)
         errors = []
@@ -423,7 +441,7 @@ class AutoApply(_WriterCase):
         self.assertEqual(self._targets()["calories"], 2318)
 
     def test_manual_override_logs_and_resets_the_count(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         event = bf.record_manual_flip(
             previous=dict(CUT_LIVE),
@@ -447,7 +465,7 @@ class AutoApply(_WriterCase):
         self.assertEqual([row["trigger"] for row in logged], ["manual"])
 
     def test_disable_flag_blocks_the_write(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         with mock.patch.object(bf, "auto_flip_enabled", return_value=False):
             view = bf.run_phase(
@@ -460,7 +478,7 @@ class AutoApply(_WriterCase):
         self.assertFalse((Path(self.tmp.name) / "fitness" / "nutrition" / "targets.json").exists())
 
     def test_missing_tdee_does_not_invent_calories(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         view = bf.run_phase(
             rows, as_of=rows[-1]["date"], phase="cut", tdee=None, applied=dict(CUT_LIVE), user_id="u", apply=True
         )
@@ -469,7 +487,7 @@ class AutoApply(_WriterCase):
         self.assertEqual(self.write_calls, [])
 
     def test_banner_lasts_seven_days_and_can_be_dismissed(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         bf.run_phase(rows, as_of=as_of, phase="cut", tdee=2318, applied=dict(CUT_LIVE), user_id="u", apply=True)
         shown = bf.run_phase(
@@ -600,7 +618,7 @@ class ManualFlipTurso(_WriterCase):
         super().tearDown()
 
     def test_manual_flip_persists_a_turso_row_that_anchors_auto(self):
-        rows = _series("2026-10-01", 40, 9.5)
+        rows = _series("2026-10-01", 40, 7.0)
         as_of = rows[-1]["date"]
         event = bf.record_manual_flip(
             previous=dict(CUT_LIVE),
@@ -694,7 +712,7 @@ class CoachCardPayload(_WriterCase):
             self.assertEqual(api[key], report[key], key)
             self.assertEqual(card_api["phase_report"][key], report[key], key)
             self.assertEqual(card_api["coach_card"]["phase_report"][key], report[key], key)
-        self.assertIn("<=10.0%", phase["threshold_label"])
+        self.assertIn("<=7.5%", phase["threshold_label"])
         self.assertIsNone(phase["last_flip"])
         self.assertEqual(self.write_calls, [])
         self.assertEqual(payload["nutrition_store"]["targets"]["calories"], 2000)
@@ -703,7 +721,7 @@ class CoachCardPayload(_WriterCase):
     def test_flip_updates_the_payload_targets_from_the_live_tdee(self):
         payload = {
             "meta": {"local_today": "2026-11-09", "user_id": "card"},
-            "health": {"body_fat": _series("2026-10-01", 40, 9.5), "weight": [], "nutrition": [], "steps": []},
+            "health": {"body_fat": _series("2026-10-01", 40, 7.0), "weight": [], "nutrition": [], "steps": []},
             "nutrition_store": {"targets": dict(CUT_LIVE)},
         }
         as_of = payload["health"]["body_fat"][-1]["date"]
