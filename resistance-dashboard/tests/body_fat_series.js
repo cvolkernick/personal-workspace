@@ -365,10 +365,10 @@ assert(
   "dedupe keeps one twin"
 );
 
-assert(bf.streakLabel("cut", 5, 14) === "Day 5/14 at ≤10%", "cut streak label");
+assert(bf.streakLabel("cut", 5, 14) === "Day 5/14 at ≤7.5%", "cut streak label");
 assert(bf.streakLabel("bulk", 5, 14) === "Day 5/14 at ≥15%", "bulk streak label");
 assert(bf.streakLabel("slow_bulk", 0, 14) === "Day 0/14 at ≥15%", "stored bulk phase uses ≥15%");
-assert(bf.streakLabel("cut", 14, 14) === "Day 14/14 at ≤10%", "full cut streak label");
+assert(bf.streakLabel("cut", 14, 14) === "Day 14/14 at ≤7.5%", "full cut streak label");
 
 
 // 2026-11-25: the Trends chart passes a 14-calendar-day window for body fat.
