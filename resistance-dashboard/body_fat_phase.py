@@ -18,7 +18,7 @@ Flip when both of these are true over the last 14 counted days:
   of those 14 days (the earliest counted day through the latest) is past
   the same bound.
 
-In a cut, past the bound means <= 10.0% and the flip is to bulk. In a bulk
+In a cut, past the bound means <= 7.5% and the flip is to bulk. In a bulk
 (stored ``bulk`` / ``slow_bulk`` / ``gain``), past the bound means >= 15.0%
 and the flip is to cut. Anything else holds.
 
@@ -63,7 +63,7 @@ COUNTED_NEEDED = 14
 HITS_NEEDED = 12
 MIN_READINGS = 4
 LOOKBACK_DAYS = 240
-CUT_AT = 10.0
+CUT_AT = 7.5
 BULK_AT = 15.0
 PROTEIN_FLOOR_G = 170
 FAT_CAP_G = 65
@@ -254,9 +254,9 @@ def _meets(kind: str, median: Optional[float]) -> bool:
 
 def threshold_label(kind: str) -> str:
     if kind == "cut":
-        return "Bulk at <=10.0%"
+        return f"Bulk at <={CUT_AT:.1f}%"
     if kind == "bulk":
-        return "Cut at >=15.0%"
+        return f"Cut at >={BULK_AT:.1f}%"
     return "Hold"
 
 

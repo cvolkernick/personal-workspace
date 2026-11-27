@@ -5271,7 +5271,7 @@
     return n.toFixed(1);
   }
 
-  /** N/12 of the last 14 counted days. A miss is not a reset. ≤10% in a cut, ≥15% in a bulk. */
+  /** N/12 of the last 14 counted days. A miss is not a reset. ≤7.5% in a cut, ≥15% in a bulk. */
   function bfCountText(bf) {
     const hits = Number(bf && bf.hits);
     const n = Number.isFinite(hits) && hits > 0 ? Math.floor(hits) : 0;

@@ -131,9 +131,16 @@
   }
 
   /**
-   * Coach-card streak text. Cut uses ≤10%. Bulk (and slow_bulk / gain) uses ≥15%.
-   * Example: Day 5/14 at ≤10%.
+   * Coach-card streak text. Cut uses ≤CUT_AT. Bulk (and slow_bulk / gain) uses ≥BULK_AT.
+   * Example: Day 5/14 at ≤7.5%.
    */
+  var CUT_AT = 7.5;
+  var BULK_AT = 15.0;
+  function boundPct(n) {
+    var x = Number(n);
+    if (!Number.isFinite(x)) return String(n);
+    return Number.isInteger(x) ? String(x) : x.toFixed(1);
+  }
   function streakLabel(phase, streakDays, streakNeeded) {
     var n = Number(streakDays);
     if (!Number.isFinite(n) || n < 0) n = 0;
@@ -146,7 +153,7 @@
       .toLowerCase()
       .replace(/[\s-]+/g, "_");
     var bulk = raw === "bulk" || raw === "slow_bulk" || raw === "gain";
-    return "Day " + n + "/" + need + " at " + (bulk ? "≥15%" : "≤10%");
+    return "Day " + n + "/" + need + " at " + (bulk ? "≥" + boundPct(BULK_AT) + "%" : "≤" + boundPct(CUT_AT) + "%");
   }
 
   /**
