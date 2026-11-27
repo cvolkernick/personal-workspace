@@ -104,9 +104,9 @@ class TrendsMuscleSetsPlacement(unittest.TestCase):
         self.assertIn("#muscle-sets-list {\n    grid-column: 2;", wide)
 
     def test_cache_bumped(self):
-        self.assertIn("/app.js?v=weekly-review-off-1", HTML)
-        self.assertIn("/app.js?v=weekly-review-off-1", SW)
-        self.assertIn('const CACHE = "fitdash-shell-v179"', SW)
+        self.assertIn("/app.js?v=cut-floor-75-1", HTML)
+        self.assertIn("/app.js?v=cut-floor-75-1", SW)
+        self.assertIn('const CACHE = "fitdash-shell-v180"', SW)
         self.assertNotIn("/app.js?v=muscle-map-1399", HTML)
         self.assertNotIn("/app.js?v=muscle-map-1399", SW)
         self.assertIn("/styles.css?v=guardrail-eq-1", HTML)

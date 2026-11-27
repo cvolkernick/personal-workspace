@@ -35,10 +35,10 @@ def _row(day: str, value: float, i: int = 0) -> dict:
 
 
 def today_fixture() -> list:
-    """One reading a day. 7-day medians miss on 11/13–11/18 and are <=10% on 11/19–11/26."""
+    """One reading a day. 7-day medians miss on 11/13–11/18 and are <=7.5% on 11/19–11/26."""
     rows = []
     for day in _days("2026-10-25", 33):
-        rows.append(_row(day, 10.3 if day <= "2026-11-15" else 9.6))
+        rows.append(_row(day, 8.0 if day <= "2026-11-15" else 7.2))
     return rows
 
 
@@ -131,7 +131,7 @@ class CounterIsTheRule(_Env):
 
 class EarliestSwitch(unittest.TestCase):
     def test_already_reached_is_today(self):
-        rows = [_row(d, 9.5) for d in _days("2026-10-20", 38)]
+        rows = [_row(d, 7.0) for d in _days("2026-10-20", 38)]
         ev = bf.evaluate(rows, as_of=TODAY, phase="cut")
         self.assertGreaterEqual(ev["hits"], 12)
         self.assertEqual(pcm.earliest_switch_date(ev), TODAY)
@@ -180,9 +180,9 @@ class NotEnoughData(_Env):
     def test_thin_days_skip_without_resetting(self):
         # A 5-day hole (11/15–11/19) makes 11/18–11/22 thin. They are skipped,
         # not reset: the 14 counted days reach back before 11/13, and the
-        # early misses (10.3) still count as misses next to the later hits.
+        # early misses (8.0) still count as misses next to the later hits.
         rows = [
-            _row(d, 10.3 if d <= "2026-11-10" else 9.5)
+            _row(d, 8.0 if d <= "2026-11-10" else 7.2)
             for d in _days("2026-10-25", 33)
             if not ("2026-11-15" <= d <= "2026-11-19")
         ]
@@ -306,7 +306,7 @@ class AgentTodayBody(unittest.TestCase):
         out = _body_today(data, TODAY)
         self.assertEqual(out["bodyweight_lbs"], 170.84)
         self.assertEqual(out["bodyweight_date"], TODAY)
-        self.assertEqual(out["body_fat_pct"], 9.6)
+        self.assertEqual(out["body_fat_pct"], 7.2)
         self.assertEqual(out["body_fat_date"], TODAY)
         self.assertAlmostEqual(out["body_fat_14d_avg"], pcm.bf_avg_14d(today_fixture(), TODAY)["value"], places=2)
 

@@ -94,6 +94,14 @@ assert(h3.includes("Target <b>15%</b> — at or over"), "bulk target");
 assert(h3.includes("stored cut <b>1,875 kcal</b>"), "bulk restores stored cut");
 assert(pc.coachLine(bulk) === "Bulk · BF 15.4% · held 8/12 · auto-switch to cut ~11/30 earliest", "bulk coach line");
 
+// 7.5% cut floor: fractional endpoint formats as 7.5%, not 8% or 7%.
+const cut75 = Object.assign({}, live, { endpoint: 7.5, median_7d: 9.8, median_14d: 9.8, today_past: false, hits: 0, state: "far", state_label: "Far" });
+const h75 = pc.cardHtml(cut75);
+assert(h75.includes("Target <b>7.5%</b> — at or under"), "7.5 target line");
+assert(h75.includes("stays ≤7.5%"), "7.5 earliest bound");
+assert(!h75.includes("Target <b>10%</b>"), "7.5 fixture does not show 10%");
+assert(!h75.includes("stays ≤10%"), "7.5 fixture does not keep 10% bound");
+
 // Escaping.
 assert(pc.cardHtml(Object.assign({}, live, { state_label: "<img>" })).includes("&lt;img&gt;"), "escapes");
 

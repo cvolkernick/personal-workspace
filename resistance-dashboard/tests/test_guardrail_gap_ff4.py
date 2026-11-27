@@ -51,7 +51,7 @@ class GuardrailEqualWidthTest(unittest.TestCase):
         self.assertRegex(CSS, r"\.guardrail-tile\.phase-check-tile \{\s*grid-column: 1 / -1;")
 
     def test_pins(self):
-        self.assertIn('const CACHE = "fitdash-shell-v179"', SW)
+        self.assertIn('const CACHE = "fitdash-shell-v180"', SW)
         self.assertIn("/styles.css?v=guardrail-eq-1", HTML)
         self.assertIn("/styles.css?v=guardrail-eq-1", SW)
 
